@@ -136,3 +136,4 @@ models
 
 # Twitter Key
 keys.py
+*.py
