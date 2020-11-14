@@ -135,5 +135,4 @@ datasets
 models
 
 # Twitter Key
-keys.py
-*.py
+keys
