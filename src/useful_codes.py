@@ -86,7 +86,7 @@ def clean_text(text, stopwords=False, tweet=True):
         text = re.sub(r'https?:\/\/\S+', '', text) # Gets rid of any links
         text = re.sub(r'[0-9]+.?[0-9]+', '', text) # Gets rid of X.X where X are numbers
         text = re.sub(r'#?(sx|Sx|SX)\S+', '', text) # Gets rid common mentions
-        text = re.sub(r'(&quot;|&Quot;)', '', text) # Gets rid of quotes
+        text = re.sub(r'(&quot;|&Quot;)', '', text) # Gets rid of quotes    
         text = re.sub(r'(&amp;|&Amp;)', '', text) # Gets rid of quotes
         text = re.sub(r'link', '', text) # Gets rid of quotes
     doc = nlp(text)
