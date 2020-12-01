@@ -18,23 +18,33 @@ Y = deque(maxlen=20)
 X.append(1)
 Y.append(1)
 
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 # # df = pd.read_csv('datasets/tweet_sentiments.csv', encoding='latin')
 
+
+#### STYLE ####
+colors = {'background': '#111111', 'text':'#7FDBFF'}
+
+
+
+#### APP ####
 app = dash.Dash(__name__)
 
-app.layout = html.Div([
-    html.H1('Dashboard - Tweet Analysis'),
-
+app.layout = html.Div(children=[
+    html.H1('Dashboard - Tweet Analysis', style={'textAlign':'center',
+                                                 'color':colors['text']}),
+    # Live Graph Test
     dcc.Graph(id='live-graph', animate=True),
     dcc.Interval(
         id='graph-update',
         interval=1000, # in milliseconds
+        n_intervals=0
     ),
 
     html.Div([
         html.Label(['Companies']),
         dcc.Dropdown(
-            id='stock_companies',
+            id='stock-companies',
             options=[
                      {'label': 'TSLA', 'value': 'TSLA'},
                      {'label': 'AAPL', 'value': 'AAPL'},
@@ -42,85 +52,96 @@ app.layout = html.Div([
                      {'label': 'YHOO', 'value': 'YHOO'},
                      {'label': 'GOOGL', 'value': 'GOOGL'},
             ],
-            value = 'dropdown #1',
+            value = 'Select Companies',
             multi=True,
             clearable=False,
-            style={"width": "40%"})
+            style={"width": "40%"}),
+        dcc.RadioItems(id='starting-year',
+                   options=[
+                       {'label': '2015', 'value': 2015},
+                       {'label': '2016', 'value': 2016},
+                       {'label': '2017', 'value': 2017},
+                       {'label': '2018', 'value': 2018},
+                       {'label': '2019', 'value': 2019},],
+                    value = 2015,
+                    style = {'color':colors['text']}
+                    )
     ]),
+
 
     dcc.Input(id='input', value='', type='text'),
     html.Div(id='output-graph'),
-    # html.Div([
-    #     dcc.Graph(id='example-stock',
-    #               figure = {
-    #                   'data': [
-    #                       {'x':df.index, 'y':df.Close, 'type': 'line', 'name': stock},
-    #                   ],
-    #                   'layout': {
-    #                       'title': stock
-    #                   }
-    #               }
-    #              )
-    # ]),
 
     html.Div([
         html.Label('Input Field'),
         dcc.Input(id='input_num', value='Enter something', type='text'),
         html.Div(id='output_num'),
-    ])
+    ]),
     
-])
-
-@app.callback(
-    Output('live-graph', 'figure'),
-    [Input('graph-update', 'n_interval')]
+],
+    # Defines overall style
+    style = {'backgroundColor': colors['background']}
 )
-def update_graph():
-    global X
-    global Y
-    X.append(X[-1] + 1)
-    Y.append(Y[-1] + Y[-1]*random.uniform(-0.1, 0.1))
 
-    data = go.Scatter(
-        X = list(X),
-        y = list(Y),
-        name = 'Scatter',
-        mode = 'lines+markers'
-    )
+# @app.callback(Output('live-graph', 'figure'),
+#               Input('graph-update', 'n_interval'))
+# def update_graph(n):
+#     global X
+#     global Y
+#     X.append(X[-1] + 1)
+#     Y.append(Y[-1] + Y[-1]*random.uniform(-0.1, 0.1))
 
-    return {'data': [data],
-            'layout': go.Layout(xaxis = dict(range=[min(X), max(X)]),
-                                yaxis = dict(range=[min(Y), max(Y)]))}
+#     data = go.Scatter(
+#         X = list(X),
+#         y = list(Y),
+#         name = 'Scatter',
+#         mode = 'lines+markers'
+#     )
+
+#     return {'data': [data],
+#             'layout': go.Layout(xaxis = dict(range=[min(X), max(X)]),
+#                                 yaxis = dict(range=[min(Y), max(Y)]))}
 @app.callback(
     Output(component_id='output-graph', component_property='children'),
-    [Input(component_id='input', component_property='value')]
+    [Input(component_id='stock-companies', component_property='value'),
+     Input('starting-year', 'value')]
 )
-def update_graph(input_data):
-    start = datetime.datetime(2015, 1, 1)
+def update_graph(company_names, starting_year):
+    start = datetime.datetime(starting_year, 1, 1)
     end = datetime.datetime.now()
-
-    df = web.DataReader(input_data, 'yahoo', start, end)
+    data = []
+    for company in company_names:
+        df = web.DataReader(company, 'yahoo', start, end)
+        data.append({'x':df.index, 'y':df.Close, 'type': 'line', 'name': company})
 
     return dcc.Graph(id='example-stock',
               figure = {
-                'data': [
-                    {'x':df.index, 'y':df.Close, 'type': 'line', 'name': input_data},
-                ],
+                'data': data,
                 'layout': {
-                    'title': input_data
+                    'title': 'Stock Graphs!',
+                    'plot_bgcolor':colors['background'],
+                    'paper_bgcolor':colors['background'], 
+                    'font': {'color':colors['text']},
                 }
               }
               )
-# @app.callback(
-#     Output(component_id='output_num', component_property='children'),
-#     [Input(component_id='input_num', component_property='value')]
-# )
-# def update_value(input_data):
-#     try:
-#         return str(float(input_data)**2)
-#     except:
-#         return "Some error"
-#     return "Input: {}".format(input_data)
+@app.callback(
+    Output('print-company-names', 'children'),
+    [Input('stock-companies', 'value')]
+)
+def print_company_names(value):
+    return "Options: {}".format(value)
+
+@app.callback(
+    Output(component_id='output_num', component_property='children'),
+    [Input(component_id='input_num', component_property='value')]
+)
+def update_value(input_data):
+    try:
+        return str(float(input_data)**2)
+    except:
+        return "Some error"
+    return "Input: {}".format(input_data)
 
 if __name__ == '__main__':
     app.run_server(debug=True)
