@@ -102,11 +102,11 @@ class listener(StreamListener):
                 conn.commit()
 
                 if sentiment < -0.4:
-                    proba = predictor.predict_proba([tweet])[0][0]
+                    proba = predictor.predict_proba([tweet])[0]
                     print('BERT EXCUTED!')
-                    if proba > 0.70:
+                    if proba[0] > proba[1]:
                         c.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba, 0))
+                            (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[0], 0))
                         conn.commit()
                         print('FLAGGGGGEED!')
             else:
