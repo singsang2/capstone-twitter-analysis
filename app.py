@@ -268,7 +268,7 @@ def similar_color_func_orange(word=None, font_size=None,
 
 def get_word_cloud(dataframe, term=''):
     mask = np.array(Image.open('images/tweet_mask.jpg'))
-    print('generating word cloud')
+    print('generating word cloud', term)
     stopword_list = list(STOP_WORDS) + list(string.punctuation) + [term] + ['good', 'bad', 'fuck', 'fucking', 'hate', 'best', 'awesome', 'great', 'horrible']
 
     wc_pos = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list,
@@ -487,13 +487,16 @@ def update_sentiment_graph(n, term, time_bin, max_length):
               [Input('get-word-cloud-button', 'n_clicks'),
                Input('sentiment-term', 'value'),])
 def update_word_cloud(n_clicks, term):
-    print("You've just clicked the word cloud button!")
-    # df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE '%{}%' ORDER BY unix DESC LIMIT 5000".format(sentiment_term), conn)#, params=('%' + term + '%'))
-    if term:
-        img_file = get_word_cloud(df, term)
+    if n_clicks>1:
+        print("You've just clicked the word cloud button!")
+        # df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE '%{}%' ORDER BY unix DESC LIMIT 5000".format(sentiment_term), conn)#, params=('%' + term + '%'))
+        if term:
+            img_file = get_word_cloud(df, term)
+        else:
+            img_file = get_word_cloud(df)
+        return encode_image(img_file)
     else:
-        img_file = get_word_cloud(df)
-    return encode_image(img_file)
+        pass
 
 ## LIVE TWEEET TABLE UPDATE ###
 @app.callback(Output('live-tweet-table', 'children'),
@@ -532,12 +535,12 @@ def update_pie(n, term, max_num):
 
     pie = go.Pie(labels=labels, values = [pos, neg, neu],
                  hoverinfo='label+percent', textinfo='value',
-                 textfont=dict(size=20, color=colors['table-text']),
+                 textfont=dict(size=20, color='#566573'),
                  marker=dict(colors=colors_pie,
                              line=dict(color=colors['background'], width=1)))
 
     return {"data": [pie], 'layout': go.Layout(title = f"Sentiment Distribution - {term}(n={max_num})",
-                                             font={'color': '#566573'},
+                                             font={'color': colors['text']},
                                              plot_bgcolor = colors['background'],
                                              paper_bgcolor = colors['background'],
                                              showlegend = True)}
@@ -549,26 +552,29 @@ def update_pie(n, term, max_num):
                Input('sentiment-term', 'value'),])
             #    Input('sentiment-term', 'value')])        
 def update_flagged_tweet_table(n_clicks, term):
-    print("You've just clicked 'FLAG ME' button!")
-    MAX_ROWS=20
-    if term:
-        flagged_df = pd.read_sql("""SELECT * FROM flag 
-                                    WHERE tweet LIKE '%{}%' AND dealt != 1
-                                    ORDER BY unix DESC LIMIT 30""".format(term), conn)
-    else:
-        flagged_df = pd.read_sql("""SELECT * FROM flag 
-                                    WHERE dealt != 1
-                                    ORDER BY unix DESC LIMIT 30""".format(term), conn)
+    if n_clicks>1:
+        print("You've just clicked 'FLAG ME' button!")
+        MAX_ROWS=15
+        if term:
+            flagged_df = pd.read_sql("""SELECT * FROM flag 
+                                        WHERE tweet LIKE '%{}%' AND dealt != 1
+                                        ORDER BY unix DESC LIMIT 30""".format(term), conn)
+        else:
+            flagged_df = pd.read_sql("""SELECT * FROM flag 
+                                        WHERE dealt != 1
+                                        ORDER BY unix DESC LIMIT 30""", conn)
 
-    flagged_df['date'] = pd.to_datetime(flagged_df['unix'], unit='ms')
-    flagged_df['link'] = flagged_df['id'].apply(make_clickable)
-    flagged_df = flagged_df[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
-    
-    if term:
-        title = f'Recently Flagged Tweets - {term}'
+        flagged_df['date'] = pd.to_datetime(flagged_df['unix'], unit='ms')
+        flagged_df['link'] = flagged_df['id'].apply(make_clickable)
+        flagged_df = flagged_df[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
+        
+        if term:
+            title = f'Recently Flagged Tweets - {term}'
+        else:
+            title = 'Recent Flagged Tweets'
+        return generate_flagged_tweet_table(flagged_df), title
     else:
-        title = 'Recent Flagged Tweets'
-    return generate_flagged_tweet_table(flagged_df), title
+        pass
 
 ################################################################
 # @app.callback(
