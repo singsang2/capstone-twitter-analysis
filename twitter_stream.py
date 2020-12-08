@@ -15,7 +15,7 @@ auth = tweepy.OAuthHandler(consumer_key=keys.CONSUMER_KEY, consumer_secret=keys.
 auth.set_access_token(keys.ACCESS_KEY, keys.ACCESS_SECRET)
 api = tweepy.API(auth, wait_on_rate_limit=True)
 
-conn = sqlite3.connect('data/twitter_2.db')
+conn = sqlite3.connect('data/twitter_2.db', check_same_thread=False, timeout=35)
 c = conn.cursor()
 
 def create_table():
@@ -72,21 +72,22 @@ class listener(StreamListener):
         try:
             # loads json data
             data = json.loads(data)
-            tweet = data['text']
-            time_ms = data['timestamp_ms']
-            favorite = data['favorite_count'] 
-            retweet = data['retweet_count']
-            id_str = data['id_str']
-            user_str = data['user']['id_str']
+            if not data['retweeted'] and 'RT @' not in data['text']:
+                tweet = data['text']
+                time_ms = data['timestamp_ms']
+                favorite = data['favorite_count'] 
+                retweet = data['retweet_count']
+                id_str = data['id_str']
+                user_str = data['user']['id_str']
 
-            clean = clean_text(data['text'])
-            # Sentiment Analysis *Change model if necessarity
-            sentiment = TextBlob(tweet).sentiment.polarity
-            print(time_ms, tweet, sentiment)
-            
-            c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                      (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
-            conn.commit()
+                clean = clean_text(data['text'])
+                # Sentiment Analysis *Change model if necessarity
+                sentiment = TextBlob(tweet).sentiment.polarity
+                print(time_ms, tweet, sentiment)
+                
+                c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
+                conn.commit()
             
         except KeyError as e:
             print(str(e))
@@ -98,16 +99,16 @@ class listener(StreamListener):
         time.sleep(5)
 
 twitterStream = tweepy.Stream(auth, listener())
-twitterStream.filter(track=['Microsoft', 'to:Microsoft', '#Microsoft', '@Microsoft',
-                            'to:Windows', '@Windows', '#Windows', 'microsoft windows'
-                            'to:Xbox', '@Xbox' ,'#Xbox', 'Xbox filter:retweets',
-                            'Microsoft surface', 'Microsoft office', 'microsoft azure', 'microsoft teams', 'microsoft cloud',
-                            'to:LinkedIn', '@LinkedIn', '#LinkedIn', 'LinkedIn'
-                            'to:Apple', '#Apple', '@Apple', 'Apple',
-                            'to:Google', '#Google', "@Google", 'Google',
-                            'Honda', 'Kia','Toyota', 'Ford', 'Hyundai', 'BMW', 'MercedesBenz', 'Tesla',
-                            'Starbucks', 'ipad', 'itunes', 'ios', 'airpod',
-                            'HomeDepot', 'Azure', 'AWS'
+twitterStream.filter(track=['Microsoft', 'to:Microsoft', '#Microsoft', 
+                            'to:Windows', 'Windows',
+                            'Xbox',
+                            'LinkedIn',
+                            'to:Apple', 'Apple',
+                            'to:Google', 'Google',
+                            'Honda', 'Kia','Toyota', 'Ford', 
+                            'Hyundai', 'BMW', 'MercedesBenz', 'Tesla',
+                            'Starbucks', 'ipad', 'itunes', 'ios', 'android',
+                            'HomeDepot', 'Azure', 'AWS',
                             'Facebook', 'instagram', 'Snapchat', 
                             'Samsung', 'Sony', 'LG', 
                             'McDonalds', 'BurgerKing', 'ChickfilA', 'PopeyesChicken',
