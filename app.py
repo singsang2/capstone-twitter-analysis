@@ -10,7 +10,6 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 import plotly
 import plotly.graph_objs as go
-from collections import deque
 import plotly.express as px
 import random
 
@@ -26,6 +25,7 @@ from wordcloud import WordCloud
 import numpy as np
 
 import matplotlib.pyplot as plt
+plt.switch_backend('Agg')
 from spacy.lang.en.stop_words import STOP_WORDS
 
 import base64
@@ -39,9 +39,9 @@ import datetime
 conn = sqlite3.connect('data/twitter_2.db', check_same_thread=False, timeout=25)
 c = conn.cursor()
 
-### Bert Model ####
-# MODEL_PATH = 'models/BERT_2'
-# predictor = ktrain.load_predictor(MODEL_PATH)
+
+
+
 
 POS_THRESH = 0.3
 NEG_THRESH = -0.3
@@ -89,10 +89,14 @@ app.layout = html.Div(children=[
 
     # Live Graph Test
     html.Div(className='row', children=[html.Div(dcc.Graph(id='live-sentiment-graph', animate=False), className='col s12 m6 l6')]),
+
+    html.Hr(),
+    html.Div(),
     html.Div(className='row', children=[html.Button('Generate Word Cloud!', id='get-word-cloud-button',
                                                     style={'display': 'inline-block',
                                                             'height': '50px',
-                                                            'padding': '0 30px',
+                                                            'padding': '0 50px',
+                                                            'margin': '0 20px 20px 0',
                                                             'color': colors['table-text'], #'#555',
                                                             'text-align': 'center',
                                                             'font-size': '12px',
@@ -106,9 +110,16 @@ app.layout = html.Div(children=[
                                                             'border-radius': '7px',
                                                             'border': '1px solid #bbb',
                                                             'cursor': 'pointer',
-                                                            'box-sizing': 'border-box'})],
-                                                    style={'align': 'center'}),
-    html.Div(className='row', children=[html.Div(html.Img(id='word-cloud-image', src='children'), className='col s12 m6 l6')]),                                    
+                                                            'box-sizing': 'border-box'}),
+                                        # html.Div(id='word-cloud-loading-message', style={'textAlign':'center', 'color':colors['table-text'], 'padding':'10px'}),
+                                        html.Div(className='container-fluid', children=[html.Div(html.Img(id='word-cloud-image', src='children', 
+                                                                                                          style={'object-fit': 'cover',
+                                                                                                                 'height':'600px', 
+                                                                                                                 'width':'1500px',
+                                                                                                                 }))])],
+                                                    style={'textAlign': 'center'}),
+
+                                    
                          
     html.Hr(),
     html.Div(className='container-fluid', children=[html.H2(id='live-tweet-table-title', 
@@ -116,8 +127,12 @@ app.layout = html.Div(children=[
                                                                    'color':colors['text'],
                                                                    'padding':'10px'})]),
     # LIVE TWEET TABLE
-    html.Div(className='row', children=[html.Div(id="live-tweet-table", className='col s12 m6 l6', style={'color':colors['text'], 'background-color':colors['ex-negative-sentiment']}),
+    html.Div(className='row', children=[html.Div(id="live-tweet-table", className='col s12 m6 l6'),
                                         html.Div(html.Label('Place Holder', style={'color':colors['table-text']}), className='col s12 m6 l6'),]),
+    
+    html.Hr(),
+
+
     dcc.Interval(
         id='live-sentiment-graph-update',
         interval=1*1000, # in milliseconds
@@ -164,18 +179,11 @@ app.layout = html.Div(children=[
     # ]),
 
 
-    # dcc.Input(id='input', value='', type='text'),
-    # html.Div(id='output-graph'),
 
-    # html.Div([
-    #     html.Label('Input Field'),
-    #     dcc.Input(id='input_num', value='Enter something', type='text'),
-    #     html.Div(id='output_num'),
-    # ]),
     
 ],
     # Defines overall style
-    style = {'backgroundColor': colors['background'], 'margin-top':'10px', 'height':'2000px'}
+    style = {'backgroundColor': colors['background'], 'margin-top':'10px', 'height':'auto'}
 )
 ############################################
 ############### FUNCTIONS ##################
@@ -215,39 +223,42 @@ def similar_color_func_orange(word=None, font_size=None,
 
 def get_word_cloud(df, term):
     mask = np.array(Image.open('images/tweet_mask.jpg'))
-
+    print('at least we are here now')
     term = [term]
     stopword_list = list(STOP_WORDS) + list(string.punctuation) + term
 
     wc_pos = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list,
                         max_font_size=256,
-                        random_state=42, width=mask.shape[1]*1.8,
-                        height=mask.shape[0]*1.8, color_func=similar_color_func_blue)
+                        random_state=42, width=mask.shape[1]*1.2,
+                        height=mask.shape[0]*1.2, color_func=similar_color_func_blue)
     wc_pos.generate(','.join(df[df['sentiment']>POS_THRESH]['clean']))
 
     wc_neg = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list,
                         max_font_size=256,
-                        random_state=42, width=mask.shape[1]*1.8,
-                        height=mask.shape[0]*1.8, color_func=similar_color_func_orange)
+                        random_state=42, width=mask.shape[1]*1.2,
+                        height=mask.shape[0]*1.2, color_func=similar_color_func_orange)
     wc_neg.generate(','.join(df[df['sentiment']<NEG_THRESH]['clean']))
 
-    fig, axes = plt.subplots(ncols=2, figsize=(30,15))
+    fig, axes = plt.subplots(ncols=2, figsize=(24,14))
     axes[0].axis('off')
     axes[0].imshow(wc_pos, interpolation="bilinear")
-    axes[0].set_title('Positive Sentiment', fontdict={'fontsize': 50, 'fontweight': 'medium'})
+    axes[0].set_title('Positive Sentiment', fontdict={'fontsize': 25, 'fontweight': 'medium', 'color': 'white'})
 
     axes[1].axis('off')
     axes[1].imshow(wc_neg, interpolation="bilinear")
-    axes[1].set_title('Negative Sentiment', fontdict={'fontsize': 50, 'fontweight': 'medium'})
+    axes[1].set_title('Negative Sentiment', fontdict={'fontsize': 25, 'fontweight': 'medium', 'color': 'white'})
     
     # timestamp = str(datetime.datetime.now())
     img_file = 'images/word_cloud.png'
     fig.savefig(img_file, facecolor=colors['background'], edgecolor=colors['background'])
-
+    # print('creted word cloud files and about to save it!')
+    plt.close('all')
     return img_file
 
 def encode_image(image_file):
+    print('before opening')
     encoded = base64.b64encode(open(image_file,'rb').read())
+    print('after opening')
     return 'data:image/png;base64,{}'.format(encoded.decode())
 
 def generate_tweet_table(df):
@@ -261,14 +272,16 @@ def generate_tweet_table(df):
                                 style_header={
                                     'backgroundColor': 'rgb(52, 73, 94)',
                                     'fontWeight': 'bold',
-                                    'fontColor': colors['text'],
-                                    'textAlign': 'center',
+                                    'color': colors['text'],
+                                    'textAlign': 'left',
                                     'fontSize': '12pt',
-                                    'height': 'auto'
+                                    'height': 'auto',
+                                    'width': 'auto'
                                 },
                                 style_cell={'padding': '5px',
                                             'backgroundColor': colors['background'],
-                                            'fontColor': colors['table-text'],
+                                            'color': colors['table-text'],
+                                            'textAlign':'left',
                                             'height':'auto',
                                             'whiteSpace':'normal',
                                             'lineHeight':'15px',
@@ -304,6 +317,7 @@ def generate_tweet_table(df):
                                         'color': 'white'
                                     },
                                 ]),
+    
     # return html.Table(className="responsive-table",
     #                   children=[html.Thead(html.Tr(children=[html.Th(col.title()) for col in df.columns.values],
     #                                                style={'color':colors['text'],
@@ -385,12 +399,19 @@ def update_sentiment_graph(n, term, time_bin, max_length):
               [Input('get-word-cloud-button', 'n_clicks'),
                Input('sentiment-term', 'value')])
 def update_word_cloud(n_clicks, term):
-    # print('UHOHHHHH!!!!!!!!')
+    print('UHOHHHHH!!!!!!!!')
     df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE '%{}%' ORDER BY unix DESC LIMIT 5000".format(term), conn)#, params=('%' + term + '%'))
     img_file = get_word_cloud(df, term)
-
+    print("LET'sGO!")
     return encode_image(img_file)
-    return 'children'
+
+@app.callback(Output('word-cloud-loading-message', 'children'),
+              [Input('get-word-cloud-button', 'n_clicks')])
+def generate_loading_message(n_clicks):
+    if n_clicks:
+        return f'GENERATING WORD CLOUDS...{n_clicks}'
+    else:
+        return 'Nothing yet'
 
 ### LIVE TWEET TABLE TITLE ###
 @app.callback(Output('live-tweet-table-title', 'children'),
@@ -416,6 +437,21 @@ def update_tweet_table(n, term):
 
     return generate_tweet_table(df_table)
 
+## LIVE FLAGGED TWEEET TABLE UPDATE ###
+@app.callback(Output('live-flagged-tweet-table', 'children'),
+              [Input('live-flagged-tweet-table-update', 'n_intervals'),
+               Input('sentiment-term', 'value')])        
+def update_flagged_tweet_table(n, term): 
+    MAX_ROWS=20
+    flagged_df = pd.read_sql("""SELECT * FROM flag 
+                                WHERE tweet LIKE '%{}%' AND dealt != 1
+                                ORDER BY sentiment ASC LIMIT 30""".format(term), conn")
+    # df_table.sort_values('sentiment', ascending=True, inplace=True)
+    flagged_df['date'] = pd.to_datetime(df_table['unix'], unit='ms')
+    flagged_df['link'] = df_table['id'].apply(make_clickable)
+    flagged_df = flagged_df[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
+
+    return generate_tweet_table(flagged_df)
 ################################################################
 # @app.callback(
 #     Output(component_id='output-graph', component_property='children'),

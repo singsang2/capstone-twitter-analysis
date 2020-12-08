@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings(action='ignore')
 import tweepy
 import pandas as pd
 import sqlite3
@@ -10,6 +12,11 @@ import string
 import re
 import spacy
 nlp = spacy.load('en_core_web_lg')
+import ktrain
+### Bert Model ####
+MODEL_PATH = 'models/BERT_2'
+predictor = ktrain.load_predictor(MODEL_PATH)
+
 
 auth = tweepy.OAuthHandler(consumer_key=keys.CONSUMER_KEY, consumer_secret=keys.CONSUMER_SECRET)
 auth.set_access_token(keys.ACCESS_KEY, keys.ACCESS_SECRET)
@@ -22,6 +29,11 @@ def create_table():
     c.execute("CREATE TABLE IF NOT EXISTS sentiment(unix REAL, id TEXT, user TEXT, tweet TEXT, clean TEXT, favorite INT, retweet INT, sentiment REAL)")
     conn.commit()
 create_table()
+
+def create_flag_table():
+    c.execute("CREATE TABLE IF NOT EXISTS flag(unix REAL, id TEXT, user TEXT, tweet TEXT, clean TEXT, favorite INT, retweet INT, sentiment REAL, dealt INT)")
+    conn.commit()
+create_flag_table()
 
 # spaCy tokenizer
 def clean_text(text, stopwords=False, tweet=True):
@@ -83,12 +95,19 @@ class listener(StreamListener):
                 clean = clean_text(data['text'])
                 # Sentiment Analysis *Change model if necessarity
                 sentiment = TextBlob(tweet).sentiment.polarity
-                print(time_ms, tweet, sentiment)
+                # print(time_ms, tweet, sentiment)
                 
                 c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
                 conn.commit()
-            
+
+                if sentiment < -0.4:
+                    proba = predictor.predict_proba([tweet])[0][0]
+                    print(proba)
+                    if proba > 0.70:
+                        c.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba, 0))
+                        conn.commit()
         except KeyError as e:
             print(str(e))
             time.sleep(5)
