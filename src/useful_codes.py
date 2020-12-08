@@ -104,7 +104,7 @@ def clean_text(text, stopwords=False, tweet=True):
     else:
         tokens_stopped = [token for token in tokens if len(token)>2]
     
-    return tokens_stopped
+    return ' '.join(tokens_stopped)
 
 def get_vec(x):
     """
@@ -312,3 +312,59 @@ def get_class_weights(y):
 #                     'Neutral': class_weight[1],
                     'Positive': class_weight[1]}
     return class_weight, class_weight_dict
+
+
+### Word Cloud Related Codes ###
+# Code inspired from https://towardsdatascience.com/create-word-cloud-into-any-shape-you-want-using-python-d0b88834bc32
+def similar_color_func_blue(word=None, font_size=None,
+                       position=None, orientation=None,
+                       font_path=None, random_state=None, color='blue'):
+    color_dict = {'blue': 191, 'orange': 30}
+    h = color_dict[color] # 0 - 360
+    s = 100 # 0 - 100
+    l =  np.random.randint(30, 70) # 0 - 100
+    return "hsl({}, {}%, {}%)".format(h, s, l)
+
+def similar_color_func_orange(word=None, font_size=None,
+                       position=None, orientation=None,
+                       font_path=None, random_state=None, color='orange'):
+    color_dict = {'blue': 191, 'orange': 30}
+    h = color_dict[color] # 0 - 360
+    s = 100 # 0 - 100
+    l =  np.random.randint(30, 70) # 0 - 100
+    return "hsl({}, {}%, {}%)".format(h, s, l)
+
+def get_word_cloud(df, term):
+    df['clean'] = df['tweet'].apply(clean_text)
+
+    from PIL import Image
+    mask = np.array(Image.open('images/tweet_mask.jpg'))
+
+    from spacy.lang.en.stop_words import STOP_WORDS
+    import string
+    term = [term]
+
+    stopword_list = list(STOP_WORDS) + list(string.punctuation) + term
+
+    wc_pos = WordCloud(mask=mask, background_color="white", stopwords=stopword_list,
+                        max_font_size=256,
+                        random_state=42, width=mask.shape[1]*1.8,
+                        height=mask.shape[0]*1.8, color_func=similar_color_func_blue)
+    wc_pos.generate(','.join(df[df['sentiment']>0]['clean']))
+
+    wc_neg = WordCloud(mask=mask, background_color="white", stopwords=stopword_list,
+                max_font_size=256,
+                random_state=42, width=mask.shape[1]*1.8,
+                height=mask.shape[0]*1.8, color_func=similar_color_func_orange)
+    wc_neg.generate(','.join(df[df['sentiment']<0]['clean']))
+
+    fig, axes = plt.subplots(ncols=2, figsize=(30,15))
+    axes[0].axis('off')
+    axes[0].imshow(wc_pos, interpolation="bilinear")
+    axes[0].set_title('Positive Sentiment', fontdict={'fontsize': 50, 'fontweight': 'medium'})
+
+    axes[1].axis('off')
+    axes[1].imshow(wc_neg, interpolation="bilinear")
+    axes[1].set_title('Negative Sentiment', fontdict={'fontsize': 50, 'fontweight': 'medium'})
+
+    return fig
