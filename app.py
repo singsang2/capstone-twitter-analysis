@@ -32,7 +32,7 @@ import base64
 from IPython.display import HTML
 import time
 import datetime
-
+# Inspired by https://github.com/Sentdex/socialsentiment
 # import ktrain
 
 ### SQL Connection ###
@@ -128,10 +128,18 @@ app.layout = html.Div(children=[
                                                                    'padding':'10px'})]),
     # LIVE TWEET TABLE
     html.Div(className='row', children=[html.Div(id="live-tweet-table", className='col s12 m6 l6'),
-                                        html.Div(html.Label('Place Holder', style={'color':colors['table-text']}), className='col s12 m6 l6'),]),
+                                        html.Div(id="live-flagged-tweet-table", className='col s12 m6 l6')]),
     
     html.Hr(),
 
+    # # LIVE TWEET TABLE
+    # html.Div(className='container-fluid', children=[html.H2(id='live-flagged-tweet-table-title', 
+    #                                                         style={'textAlign':'center',
+    #                                                                'color':colors['text'],
+    #                                                                'padding':'10px'})]),
+    # html.Div(className='row', children=[html.Div(id="live-flaggedtweet-table", className='col s12 m6 l6')]),
+    
+    html.Hr(),
 
     dcc.Interval(
         id='live-sentiment-graph-update',
@@ -148,6 +156,12 @@ app.layout = html.Div(children=[
     dcc.Interval(
         id='live-tweet-table-update',
         interval=2*1000, # in milliseconds
+        n_intervals=0
+    ),
+
+    dcc.Interval(
+        id='live-flagged-tweet-table-update',
+        interval=10*1000, # in milliseconds
         n_intervals=0
     ),
 
@@ -318,15 +332,50 @@ def generate_tweet_table(df):
                                     },
                                 ]),
     
-    # return html.Table(className="responsive-table",
-    #                   children=[html.Thead(html.Tr(children=[html.Th(col.title()) for col in df.columns.values],
-    #                                                style={'color':colors['text'],
-    #                                                       'background-color': tweet_color(-0.7)})),
-    #                             html.Tbody([html.Tr(children=[html.Td(data) for data in d], 
-    #                                                 style={'color':colors['table-text'], 
-    #                                                        'background-color': tweet_color(-0.7)})
-    #                                                 for d in df.values.tolist()])
-    #                     ])
+def generate_flagged_tweet_table(df):
+    return dash_table.DataTable(id="flagged-table",
+                                columns=[{'name': 'Date', 'id':'date', 'type': 'datetime'},
+                                         {'name': 'Tweet', 'id':'tweet', 'type': 'text'},
+                                         {'name': 'Sentiment', 'id':'sentiment', 'type': 'numeric'},
+                                         {'name': 'Link', 'id':'link', 'type': 'text', 'presentation':'markdown'},
+                                         {'name': 'Dealt', 'id':'dealt', 'type': 'text', 'presentation':'dropdown'},],
+                                data = df.to_dict('records'),
+                                editable = True,
+                                dropdown={'dealt': {'options': [{'label': i, 'value': i} for i in [0, 1]]}},
+                                style_header={
+                                    'backgroundColor': 'rgb(52, 73, 94)',
+                                    'fontWeight': 'bold',
+                                    'color': colors['text'],
+                                    'textAlign': 'left',
+                                    'fontSize': '12pt',
+                                    'height': 'auto',
+                                    'width': 'auto'
+                                },
+                                style_cell={'padding': '5px',
+                                            'backgroundColor': colors['background'],
+                                            'color': colors['table-text'],
+                                            'textAlign':'left',
+                                            'height':'auto',
+                                            'whiteSpace':'normal',
+                                            'lineHeight':'15px',
+                                            'width':'auto'},
+                                style_as_list_view=True,
+                                style_data_conditional=[
+                                    {
+                                        'if': {
+                                            'filter_query': '{sentiment} < -0.3'
+                                        },
+                                        'backgroundColor': colors['sl-negative-sentiment'],
+                                        'color': colors['ex-negative-sentiment']
+                                    },
+                                    {
+                                        'if': {
+                                            'filter_query': '{sentiment} < -0.6'
+                                        },
+                                        'backgroundColor': colors['ex-negative-sentiment'],
+                                        'color': 'white'
+                                    }
+                                ]),
 def make_clickable(id):
     return f'[Link](https://twitter.com/user/status/{id})'
 
@@ -427,15 +476,24 @@ def update_table_title(term):
               [Input('live-tweet-table-update', 'n_intervals'),
                Input('sentiment-term', 'value')])        
 def update_tweet_table(n, term): 
-    MAX_ROWS=20
+    MAX_ROWS=15
     df_table = df.copy()
     # df_table.sort_values('sentiment', ascending=True, inplace=True)
     df_table['date'] = pd.to_datetime(df_table['unix'], unit='ms')
-    df_table['dealt'] = 'No'
+    df_table['dealt'] = 0
     df_table['link'] = df_table['id'].apply(make_clickable)
     df_table = df_table[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
 
     return generate_tweet_table(df_table)
+
+### LIVE FLAGGED TWEET TABLE TITLE UPDATE ###
+@app.callback(Output('live-flagged-tweet-table-title', 'children'),
+              [Input('sentiment-term', 'value')])
+def update_flagged_table_title(term):
+    if term:
+        return f'Recent Negative Tweets - {term}'
+    else:
+        return 'Recent Negative Tweets'
 
 ## LIVE FLAGGED TWEEET TABLE UPDATE ###
 @app.callback(Output('live-flagged-tweet-table', 'children'),
@@ -445,13 +503,13 @@ def update_flagged_tweet_table(n, term):
     MAX_ROWS=20
     flagged_df = pd.read_sql("""SELECT * FROM flag 
                                 WHERE tweet LIKE '%{}%' AND dealt != 1
-                                ORDER BY sentiment ASC LIMIT 30""".format(term), conn")
-    # df_table.sort_values('sentiment', ascending=True, inplace=True)
-    flagged_df['date'] = pd.to_datetime(df_table['unix'], unit='ms')
-    flagged_df['link'] = df_table['id'].apply(make_clickable)
+                                ORDER BY sentiment ASC LIMIT 30""".format(term), conn)
+
+    flagged_df['date'] = pd.to_datetime(flagged_df['unix'], unit='ms')
+    flagged_df['link'] = flagged_df['id'].apply(make_clickable)
     flagged_df = flagged_df[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
 
-    return generate_tweet_table(flagged_df)
+    return generate_flagged_tweet_table(flagged_df)
 ################################################################
 # @app.callback(
 #     Output(component_id='output-graph', component_property='children'),
@@ -499,7 +557,8 @@ def update_flagged_tweet_table(n, term):
 ##########################################################
 
 #### Materializing CSS ####
-external_css = ["https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"]
+# external_css = ["https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"]
+external_css = ["https://www.w3schools.com/w3css/4/w3.css"]
 for css in external_css:
     app.css.append_css({"external_url": css})
 

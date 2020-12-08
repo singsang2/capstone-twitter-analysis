@@ -95,7 +95,7 @@ class listener(StreamListener):
                 clean = clean_text(data['text'])
                 # Sentiment Analysis *Change model if necessarity
                 sentiment = TextBlob(tweet).sentiment.polarity
-                # print(time_ms, tweet, sentiment)
+                print(time_ms, tweet, sentiment)
                 
                 c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
@@ -103,11 +103,14 @@ class listener(StreamListener):
 
                 if sentiment < -0.4:
                     proba = predictor.predict_proba([tweet])[0][0]
-                    print(proba)
+                    print('BERT EXCUTED!')
                     if proba > 0.70:
                         c.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba, 0))
                         conn.commit()
+                        print('FLAGGGGGEED!')
+            else:
+                print('RETWEEEEEEEEEEEEEET!')
         except KeyError as e:
             print(str(e))
             time.sleep(5)
