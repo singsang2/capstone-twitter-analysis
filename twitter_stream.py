@@ -13,29 +13,31 @@ import re
 import spacy
 nlp = spacy.load('en_core_web_lg')
 import ktrain
-### Bert Model ####
-MODEL_PATH = 'models/BERT_2'
-predictor = ktrain.load_predictor(MODEL_PATH)
+import datetime
 
+### Constants ###
+# Timestamp for today's date
+TIMESTAMP = str(datetime.date.today()).replace('-','')
+# Flag Sentiment Threshold
+NEG_THRESH = -0.4    # any tweets that have less than this value by TextBlob will be re-evaluated by BERT
 
-auth = tweepy.OAuthHandler(consumer_key=keys.CONSUMER_KEY, consumer_secret=keys.CONSUMER_SECRET)
-auth.set_access_token(keys.ACCESS_KEY, keys.ACCESS_SECRET)
-api = tweepy.API(auth, wait_on_rate_limit=True)
-
-conn = sqlite3.connect('data/twitter_2.db', check_same_thread=False, timeout=35)
-c = conn.cursor()
-
-def create_table():
+### SQL Connection / creating tables ###
+def create_table(c, conn):
     c.execute("CREATE TABLE IF NOT EXISTS sentiment(unix REAL, id TEXT, user TEXT, tweet TEXT, clean TEXT, favorite INT, retweet INT, sentiment REAL)")
     conn.commit()
-create_table()
 
-def create_flag_table():
+def create_flag_table(c, conn):
     c.execute("CREATE TABLE IF NOT EXISTS flag(unix REAL, id TEXT, user TEXT, tweet TEXT, clean TEXT, favorite INT, retweet INT, sentiment REAL, dealt INT)")
     conn.commit()
-create_flag_table()
 
-# spaCy tokenizer
+def connect_sqlite(timestamp):
+    path=f'data/twitter_{timestamp}.db'
+    conn = sqlite3.connect(path, check_same_thread=False, timeout=20)
+    c = conn.cursor()
+
+    return c, conn
+
+### spaCy tokenizer ###
 def clean_text(text, stopwords=False, tweet=True):
     """
     Cleans and tokenizes tweet text data.
@@ -78,8 +80,13 @@ def clean_text(text, stopwords=False, tweet=True):
     
     return ' '.join(tokens_stopped)
 
-
+### Twitter Listener Class Modification to Meet Our Needs ###
 class listener(StreamListener):
+    def __init__(self, predictor, cursor, conn):
+        self.predictor = predictor
+        self.cursor = cursor
+        self.conn = conn
+
     def on_data(self, data):
         try:
             # loads json data
@@ -95,44 +102,59 @@ class listener(StreamListener):
                 clean = clean_text(data['text'])
                 # Sentiment Analysis *Change model if necessarity
                 sentiment = TextBlob(tweet).sentiment.polarity
-                print(time_ms, tweet, sentiment)
+                # print(time_ms, tweet, sentiment)
                 
-                c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                self.cursor.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
-                conn.commit()
+                self.conn.commit()
 
-                if sentiment < -0.4:
-                    proba = predictor.predict_proba([tweet])[0]
+                if sentiment < NEG_THRESH:  ### This NEG_THRESH value can be adjusted by the user
+                    proba = self.predictor.predict_proba([tweet])[0]
                     print('BERT EXCUTED!')
                     if proba[0] > proba[1]:
-                        c.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        self.cursor.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[0], 0))
-                        conn.commit()
+                        self.conn.commit()
                         print('FLAGGGGGEED!')
-            else:
-                print('RETWEEEEEEEEEEEEEET!')
         except KeyError as e:
             print(str(e))
-            time.sleep(5)
+            time.sleep(2)
         return True
     
     def on_error(self, status):
         print(status)
         time.sleep(5)
 
-twitterStream = tweepy.Stream(auth, listener())
-twitterStream.filter(track=['Microsoft', 'to:Microsoft', '#Microsoft', 
-                            'to:Windows', 'Windows',
-                            'Xbox',
-                            'LinkedIn',
-                            'to:Apple', 'Apple',
-                            'to:Google', 'Google',
-                            'Honda', 'Kia','Toyota', 'Ford', 
-                            'Hyundai', 'BMW', 'MercedesBenz', 'Tesla',
-                            'Starbucks', 'ipad', 'itunes', 'ios', 'android',
-                            'HomeDepot', 'Azure', 'AWS',
-                            'Facebook', 'instagram', 'Snapchat', 
-                            'Samsung', 'Sony', 'LG', 
-                            'McDonalds', 'BurgerKing', 'ChickfilA', 'PopeyesChicken',
-                            'PlayStation', 'PS5'], languages=['en'])
-# twitterStream.filter(track=['a', 'the', 'i', 'you', 'to'], languages=['en'])
+def stream(auth, predictor, c, conn, q, languages=['en']):
+    print('Streaming Beginning...')
+    print('Requested Queries: ', q)
+    twitterStream = tweepy.Stream(auth, listener(predictor, c, conn))
+    twitterStream.filter(track=q, languages=languages)
+    # twitterStream.filter(track=['a', 'the', 'i', 'you', 'to'], languages=['en'])
+
+def run_stream(timestamp=TIMESTAMP, q=['a', 'the', 'i', 'you', 'to']):
+    # Loads BERT model
+    MODEL_PATH = 'models/BERT_2' ### CHANGE THE PATH ACCORDINGLY
+    predictor = ktrain.load_predictor(MODEL_PATH)
+
+    # Connects to Twitter API via Tweepy
+    auth = tweepy.OAuthHandler(consumer_key=keys.CONSUMER_KEY, consumer_secret=keys.CONSUMER_SECRET) ### MUST SET YOUR OWN KEYS
+    auth.set_access_token(keys.ACCESS_KEY, keys.ACCESS_SECRET) ### MUST SET YOUR OWN KEYS
+    api = tweepy.API(auth, wait_on_rate_limit=True)
+
+    # Connects to sqlite3 database
+    c, conn = connect_sqlite(timestamp)
+    create_table(c, conn)
+    create_flag_table(c, conn)
+    while 1:
+        try:
+            stream(auth, predictor, c, conn, q=q)
+        except Exception as e:
+            print('DISCONNECTED')
+            print(e)
+            time.sleep(10)
+            print('*'*100) 
+            print('RECONNECTING '*20)
+            print('*'*100)
+
+run_stream(TIMESTAMP, q=['Microsoft'])

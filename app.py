@@ -18,9 +18,9 @@ import datetime
 
 import string
 import re
-import spacy
+# import spacy
 from PIL import Image
-nlp = spacy.load('en_core_web_lg')
+# nlp = spacy.load('en_core_web_lg')
 from wordcloud import WordCloud
 import numpy as np
 
@@ -33,18 +33,16 @@ from IPython.display import HTML
 import time
 import datetime
 # Inspired by https://github.com/Sentdex/socialsentiment
-# import ktrain
 
 global refresh_time
 refresh_time = 3
 
+# Timestamp for today's date
+TIMESTAMP = str(datetime.date.today()).replace('-','')
+
 ### SQL Connection ###
-conn = sqlite3.connect('data/twitter_2.db', check_same_thread=False, timeout=25)
+conn = sqlite3.connect(f'data/twitter_20201209.db', check_same_thread=False, timeout=25)
 c = conn.cursor()
-
-
-
-
 
 POS_THRESH = 0.3
 NEG_THRESH = -0.3
@@ -60,8 +58,27 @@ colors = {'background': '#111111',
           'sl-negative-sentiment': 'rgb(241, 148, 138)',
           'sl-positive-sentiment': 'rgb(171, 235, 198)'}
 
+flag_button_style = {'display': 'inline-block',
+                    'height': '50px',
+                    'padding': '0 50px',
+                    'margin': '0 20px 20px 0',
+                    'color': colors['sl-negative-sentiment'], #'#555',
+                    'text-align': 'center',
+                    'font-size': '12px',
+                    'font-weight': '600',
+                    'line-height': '38px',
+                    'letter-spacing': '.1rem',
+                    'text-transform': 'uppercase',
+                    'text-decoration': 'none',
+                    'white-space': 'nowrap',
+                    'background-color': 'transparent',
+                    'border-radius': '7px',
+                    'border': '1px solid #bbb',
+                    'cursor': 'pointer',
+                    'box-sizing': 'border-box'}
+
 #### APP ####
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=['https://www.w3schools.com/w3css/4/w3.css']) # external - 
 
 app.layout = html.Div(className='w3-row', children=[
     html.Div(className='container-fluid', children=[html.H1('Dashboard - Tweet Analysis', id='main-title')],
@@ -70,13 +87,13 @@ app.layout = html.Div(className='w3-row', children=[
                                                            'padding':'10px'}),
     html.Hr(),
     ### Real-time Data ###
-    html.Div(className='container-fluid', children=[html.Label('Search: ', style={'color':colors['text']}),
+    html.Div(className='w3-row', children=[html.Label('Search: ', style={'color':colors['text']}),
                                                     dcc.Input(id='sentiment-term', value='Microsoft', type='text', debounce = True)],
                                                     style={'textAlign':'left',
                                                            'padding':'5px',
                                                            'color':colors['text']}),
 
-    html.Div(className='container-fluid', children=[html.Label('Time Bins: ', style={'color':colors['text']}),
+    html.Div(className='w3-row', children=[html.Label('Time Bins: ', style={'color':colors['text']}),
                                                     dcc.RadioItems(id='sentiment-real-time-bin',
                                                                    options=[{'label':i, 'value':i} for i in ['5s', '10s', '30s', '60s']],
                                                                    value = '5s',
@@ -91,7 +108,8 @@ app.layout = html.Div(className='w3-row', children=[
                                                            'color':colors['text']}),
 
     # Live Sentiment Graph
-    html.Div(className='row', children=[html.Div(dcc.Graph(id='live-sentiment-graph', animate=False), className='col s12 m6 l6')]),
+    html.Div(className='w3-cell-row', children=[html.Div(dcc.Graph(id='live-sentiment-graph', animate=False), className='w3-container w3-twothird'),
+                                           html.Div(dcc.Graph(id='live-tweet-table-pie', animate=False), className='w3-container w3-third w3-cell-middle')]),
 
     html.Hr(),
     html.Div(),
@@ -124,48 +142,46 @@ app.layout = html.Div(className='w3-row', children=[
     
                          
     html.Hr(),
-    html.Div(className='container-fluid', children=[html.H2(id='live-tweet-table-title', 
-                                                            style={'textAlign':'center',
-                                                                   'color':colors['text'],
-                                                                   'padding':'10px'})]),
-    # LIVE TWEET TABLE
-    html.Div(className='w3-row', children=[html.Div(id="live-tweet-table", className='w3-container w3-twothird'),
-                                           html.Div(dcc.Graph(id='live-tweet-table-pie', animate=False), className='w3-container w3-third')]),
+    # html.Div(className='container-fluid', children=[html.H2(id='live-tweet-table-title', 
+    #                                                         style={'textAlign':'center',
+    #                                                                'color':colors['text'],
+    #                                                                'padding':'10px'})]),
+  
+    html.Div(className='w3-cell-row', children=[html.Div(className='w3-container w3-half w3-cell-middle', 
+                                                         children=[html.H2(id='live-tweet-table-title', style={'textAlign':'center',
+                                                                                                                'color':colors['text'],
+                                                                                                                'padding':'13px'})]),
+                                                html.Div(className='w3-container w3-half w3-cell-middle', 
+                                                         children=[html.H2(id='live-flagged-tweet-table-title', style={'textAlign':'center',
+                                                                                                                'color':colors['sl-negative-sentiment'],
+                                                                                                                'padding':'13px'})])                   
+                                                # html.Div(className='w3-container w3-half w3-center', 
+                                                #          children=[html.Button("UPDATE FLAGGED TWEETS!", id='live-flagged-tweet-table-update-button',
+                                                #                                 style=flag_button_style)])
+                                                ]),
+  # LIVE TWEET TABLE
+    html.Div(className='w3-cell-row', children=[html.Div(className='w3-container w3-half', 
+                                                         children=[html.Div(id="live-tweet-table")]),
+                                                                   
+                                                html.Div(className='w3-container w3-half w3-center', 
+                                                         children=[html.Div(id="live-flagged-tweet-table")])                   
+                                                ]),
     
     html.Hr(),
 
     # LIVE FLAGGED TWEET TABLE
             
-    html.Div(className='container-fluid', children=[html.H2(id='live-flagged-tweet-table-title', 
-                                                            style={'textAlign':'center',
-                                                                   'color':colors['ex-negative-sentiment'],
-                                                                   'padding':'10px'})]),
+    # html.Div(className='container-fluid', children=[html.H2(id='live-flagged-tweet-table-title', 
+    #                                                         style={'textAlign':'center',
+    #                                                                'color':colors['ex-negative-sentiment'],
+    #                                                                'padding':'10px'})]),
 
-    html.Div(className='row', children=[html.Button("FLAG ME!", id='live-flagged-tweet-table-update-button',
-                                                    style={'display': 'inline-block',
-                                                            'height': '50px',
-                                                            'padding': '0 50px',
-                                                            'margin': '0 20px 20px 0',
-                                                            'color': colors['sl-negative-sentiment'], #'#555',
-                                                            'text-align': 'center',
-                                                            'font-size': '12px',
-                                                            'font-weight': '600',
-                                                            'line-height': '38px',
-                                                            'letter-spacing': '.1rem',
-                                                            'text-transform': 'uppercase',
-                                                            'text-decoration': 'none',
-                                                            'white-space': 'nowrap',
-                                                            'background-color': 'transparent',
-                                                            'border-radius': '7px',
-                                                            'border': '1px solid #bbb',
-                                                            'cursor': 'pointer',
-                                                            'box-sizing': 'border-box'})],
-                                                    style={'textAlign': 'center'}),              
+    # html.Div(className='row', children=[html.Button("FLAG ME!", id='live-flagged-tweet-table-update-button',
+    #                                                 style=flag_button_style)],
+    #                                                 style={'textAlign': 'center'}),              
 
-    html.Div(className='w3-row', children=[html.Div(id="live-flagged-tweet-table", className='w3-container w3-twothird'),
-                                           html.Div('EMPTY SPACE',className='w3-container w3-third')]),
-    
-    html.Hr(),
+    # html.Div(className='w3-row', children=[html.Div(id="live-flagged-tweet-table", className='w3-container w3-twothird'),
+    #                                        html.Div('EMPTY SPACE',className='w3-container w3-third')]),
     
     dcc.Interval(
         id='live-sentiment-graph-update',
@@ -181,20 +197,21 @@ app.layout = html.Div(className='w3-row', children=[
 
     dcc.Interval(
         id='live-tweet-table-update',
-        interval=(refresh_time+4)*1000, # in milliseconds
+        interval=refresh_time*1000, # in milliseconds
         n_intervals=0
     ),
 
     dcc.Interval(
         id='live-tweet-table-pie-update',
-        interval=(refresh_time+5)*1000, # in milliseconds
+        interval=refresh_time*1000, # in milliseconds
         n_intervals=0
     ),
-    # dcc.Interval(
-    #     id='live-flagged-tweet-table-update',
-    #     interval=10*1000, # in milliseconds
-    #     n_intervals=0
-    # ),
+
+    dcc.Interval(
+        id='live-flagged-tweet-table-update',
+        interval=refresh_time*1000, # in milliseconds
+        n_intervals=0
+    ),
 
     # html.Div([
     #     html.Label(['Companies']),
@@ -235,6 +252,9 @@ app.layout = html.Div(className='w3-row', children=[
 ############################################
 
 def df_resample(dataframe, time_bin):
+    """
+    resamples dataframe according to time bin chose by an user.
+    """
     vol_df = dataframe.copy()
     vol_df['volume'] = 1
     vol_df = vol_df.resample(time_bin).sum()
@@ -251,6 +271,9 @@ def df_resample(dataframe, time_bin):
 def similar_color_func_blue(word=None, font_size=None,
                        position=None, orientation=None,
                        font_path=None, random_state=None, color='blue'):
+    """
+    gives similar colors that will be used in wordcloud
+    """
     color_dict = {'blue': 191, 'orange': 30}
     h = color_dict[color] # 0 - 360
     s = 100 # 0 - 100
@@ -269,7 +292,7 @@ def similar_color_func_orange(word=None, font_size=None,
 def get_word_cloud(dataframe, term=''):
     mask = np.array(Image.open('images/tweet_mask.jpg'))
     print('generating word cloud', term)
-    stopword_list = list(STOP_WORDS) + list(string.punctuation) + [term] + ['good', 'bad', 'fuck', 'fucking', 'hate', 'best', 'awesome', 'great', 'horrible']
+    stopword_list = list(STOP_WORDS) + list(string.punctuation) + [term] + ['like', 'good', 'bad', 'fuck', 'fucking', 'hate', 'best', 'awesome', 'great', 'horrible']
 
     wc_pos = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list,
                         max_font_size=256,
@@ -435,20 +458,22 @@ def update_sentiment_graph(n, term, time_bin, max_length):
         global df
         if term:
             df = pd.read_sql(f"SELECT * FROM sentiment WHERE tweet LIKE '%{term}%' ORDER BY unix DESC LIMIT {max_length}", conn)#, params=('%' + term + '%'))
+            print('with term: dfsize: ',df.shape)
         else:
             df = pd.read_sql(f"SELECT * FROM sentiment ORDER BY unix DESC LIMIT {max_length}", conn)#, params=('%' + term + '%'))    
+            print('without term: dfsize: ',df.shape)
         df_sent = df.copy()
-
+        
         df_sent.sort_values('unix', inplace=True)
         df_sent['date'] = pd.to_datetime(df_sent['unix'], unit='ms')
         df_sent.set_index('date', inplace=True)
-
+        
         df_sent['sentiment_smoothed'] = df_sent['sentiment'].rolling(int(len(df)/10)).mean()
 
 
         resampled_df = df_resample(df_sent, time_bin)
-        # df.dropna(inplace=True)
-
+        print('df size after resample: ', resampled_df.shape)
+        
         X = resampled_df.index
         Y = resampled_df.sentiment_smoothed.values
         Y2 = resampled_df.volume.values
@@ -468,7 +493,9 @@ def update_sentiment_graph(n, term, time_bin, max_length):
             name = 'Volume',
             marker = dict(color = (colors['volume-graph']))
         )
-
+        print('X length: ', len(X))
+        print('Y length: ', len(Y))
+        print('Y2 length: ', len(Y2))
         return {'data': [data1, data2],
                 'layout': go.Layout(xaxis = dict(range=[min(X), max(X)]),
                                     yaxis = dict(range=[0, max(Y2)*3], title='Volume', side='right'),
@@ -487,8 +514,8 @@ def update_sentiment_graph(n, term, time_bin, max_length):
               [Input('get-word-cloud-button', 'n_clicks'),
                Input('sentiment-term', 'value'),])
 def update_word_cloud(n_clicks, term):
-    if n_clicks>1:
-        print("You've just clicked the word cloud button!")
+    if n_clicks:
+        print(f"You've just clicked the word cloud button! term: {term}")
         # df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE '%{}%' ORDER BY unix DESC LIMIT 5000".format(sentiment_term), conn)#, params=('%' + term + '%'))
         if term:
             img_file = get_word_cloud(df, term)
@@ -498,15 +525,19 @@ def update_word_cloud(n_clicks, term):
     else:
         pass
 
+
 ## LIVE TWEEET TABLE UPDATE ###
 @app.callback(Output('live-tweet-table', 'children'),
               Output('live-tweet-table-title', 'children'),
               [Input('live-tweet-table-update', 'n_intervals'),
                Input('sentiment-term', 'value')])        
-def update_tweet_table(n, term):
+def update_tweet_table(n_interval, term):
+    # print(f"live tweet table n_interval: {n_interval}")
+    if n_interval<2:
+        time.sleep(refresh_time*2)
+
     MAX_ROWS=15
     df_table = df.copy()
-    # df_table.sort_values('sentiment', ascending=True, inplace=True)
     df_table['date'] = pd.to_datetime(df_table['unix'], unit='ms')
     df_table['link'] = df_table['id'].apply(make_clickable)
     df_table = df_table[['date','tweet','sentiment', 'link']].iloc[:MAX_ROWS]
@@ -518,12 +549,16 @@ def update_tweet_table(n, term):
 
     return generate_tweet_table(df_table), title
 
+
 ## LIVE PIE UPDATE ###
 @app.callback(Output('live-tweet-table-pie', 'figure'),
               [Input('live-tweet-table-pie-update', 'n_intervals'),
                Input('sentiment-term', 'value'),
                Input('sentiment-max-length', 'value')])        
-def update_pie(n, term, max_num):
+def update_pie(n_interval, term, max_num):
+    # print(f"Live-tweet-pie n_interval: {n_interval}")
+    if n_interval<2:
+        time.sleep(refresh_time*2)
     df_pie = df.copy()
 
     labels = ['Positive', 'Negative', 'Neutral']
@@ -534,47 +569,46 @@ def update_pie(n, term, max_num):
     colors_pie = ['#58D68D', '#E74C3C', '#F7DC6F']
 
     pie = go.Pie(labels=labels, values = [pos, neg, neu],
-                 hoverinfo='label+percent', textinfo='value',
-                 textfont=dict(size=20, color='#566573'),
-                 marker=dict(colors=colors_pie,
-                             line=dict(color=colors['background'], width=1)))
+                hoverinfo='label+percent', textinfo='value',
+                textfont=dict(size=20, color=colors['background']), #'#566573'),
+                marker=dict(colors=colors_pie,
+                            line=dict(color=colors['background'], width=1)))
 
     return {"data": [pie], 'layout': go.Layout(title = f"Sentiment Distribution - {term}(n={max_num})",
-                                             font={'color': colors['text']},
-                                             plot_bgcolor = colors['background'],
-                                             paper_bgcolor = colors['background'],
-                                             showlegend = True)}
+                                            font={'color': colors['text']},
+                                            plot_bgcolor = colors['background'],
+                                            paper_bgcolor = colors['background'],
+                                            showlegend = True)}
 
 ## LIVE FLAGGED TWEEET TABLE UPDATE ###
 @app.callback(Output('live-flagged-tweet-table', 'children'),
               Output('live-flagged-tweet-table-title', 'children'),
-              [Input('live-flagged-tweet-table-update-button', 'n_clicks'),
-               Input('sentiment-term', 'value'),])
-            #    Input('sentiment-term', 'value')])        
-def update_flagged_tweet_table(n_clicks, term):
-    if n_clicks>1:
-        print("You've just clicked 'FLAG ME' button!")
-        MAX_ROWS=15
-        if term:
-            flagged_df = pd.read_sql("""SELECT * FROM flag 
-                                        WHERE tweet LIKE '%{}%' AND dealt != 1
-                                        ORDER BY unix DESC LIMIT 30""".format(term), conn)
-        else:
-            flagged_df = pd.read_sql("""SELECT * FROM flag 
-                                        WHERE dealt != 1
-                                        ORDER BY unix DESC LIMIT 30""", conn)
-
-        flagged_df['date'] = pd.to_datetime(flagged_df['unix'], unit='ms')
-        flagged_df['link'] = flagged_df['id'].apply(make_clickable)
-        flagged_df = flagged_df[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
-        
-        if term:
-            title = f'Recently Flagged Tweets - {term}'
-        else:
-            title = 'Recent Flagged Tweets'
-        return generate_flagged_tweet_table(flagged_df), title
+              [Input('live-flagged-tweet-table-update', 'n_intervals'),
+               Input('sentiment-term', 'value')])    
+def update_flagged_tweet_table(n_interval, term):
+    # print(f"Flag n_interval: {n_interval}")
+    if n_interval<2:
+        time.sleep(refresh_time*2)
+    MAX_ROWS=15
+    if term:
+        flagged_df = pd.read_sql("""SELECT * FROM flag 
+                                    WHERE tweet LIKE '%{}%' AND dealt != 1
+                                    ORDER BY unix DESC LIMIT 30""".format(term), conn)
     else:
-        pass
+        flagged_df = pd.read_sql("""SELECT * FROM flag 
+                                    WHERE dealt != 1
+                                    ORDER BY unix DESC LIMIT 30""", conn)
+
+    flagged_df['date'] = pd.to_datetime(flagged_df['unix'], unit='ms')
+    flagged_df['link'] = flagged_df['id'].apply(make_clickable)
+    flagged_df = flagged_df[['date','tweet','sentiment', 'link', 'dealt']].iloc[:MAX_ROWS]
+    
+    if term:
+        title = f'Recently Flagged Tweets - {term}'
+    else:
+        title = 'Recent Flagged Tweets'
+    return generate_flagged_tweet_table(flagged_df), title
+
 
 ################################################################
 # @app.callback(
@@ -624,9 +658,9 @@ def update_flagged_tweet_table(n_clicks, term):
 
 #### Materializing CSS ####
 # external_css = ["https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"]
-external_css = ["https://www.w3schools.com/w3css/4/w3.css"]
-for css in external_css:
-    app.css.append_css({"external_url": css})
+# external_css = ["https://www.w3schools.com/w3css/4/w3.css"]
+# for css in external_css:
+#     app.css.append_css({"external_url": css})
 
 if __name__ == '__main__':
     app.run_server(debug=True)
