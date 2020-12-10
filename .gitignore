@@ -129,13 +129,13 @@ dmypy.json
 .pyre/
 
 # dataset
-datasets
+datasets/*
 
 # models
-models
+models/BERT_2
 
 # Twitter Key
-keys
+keys/*
 
 # Twitter data
-data
+data/*
