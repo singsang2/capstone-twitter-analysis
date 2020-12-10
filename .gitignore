@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # dataset
-datasets/*
+datasets/*.csv
 
 # models
 models/BERT_2
