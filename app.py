@@ -18,9 +18,7 @@ import datetime
 
 import string
 import re
-# import spacy
 from PIL import Image
-# nlp = spacy.load('en_core_web_lg')
 from wordcloud import WordCloud
 import numpy as np
 
@@ -29,7 +27,6 @@ plt.switch_backend('Agg')
 from spacy.lang.en.stop_words import STOP_WORDS
 
 import base64
-from IPython.display import HTML
 import time
 import datetime
 # Inspired by https://github.com/Sentdex/socialsentiment
@@ -41,7 +38,7 @@ refresh_time = 3
 TIMESTAMP = str(datetime.date.today()).replace('-','')
 
 ### SQL Connection ###
-conn = sqlite3.connect(f'data/twitter_20201209.db', check_same_thread=False, timeout=25)
+conn = sqlite3.connect(f'data/twitter_{TIMESTAMP}.db', check_same_thread=False, timeout=25)
 c = conn.cursor()
 
 POS_THRESH = 0.3
@@ -58,11 +55,11 @@ colors = {'background': '#111111',
           'sl-negative-sentiment': 'rgb(241, 148, 138)',
           'sl-positive-sentiment': 'rgb(171, 235, 198)'}
 
-flag_button_style = {'display': 'inline-block',
+button_style = {'display': 'inline-block',
                     'height': '50px',
                     'padding': '0 50px',
                     'margin': '0 20px 20px 0',
-                    'color': colors['sl-negative-sentiment'], #'#555',
+                    'color': colors['table-text'],
                     'text-align': 'center',
                     'font-size': '12px',
                     'font-weight': '600',
@@ -78,21 +75,23 @@ flag_button_style = {'display': 'inline-block',
                     'box-sizing': 'border-box'}
 
 #### APP ####
-app = dash.Dash(__name__, external_stylesheets=['https://www.w3schools.com/w3css/4/w3.css']) # external - 
+app = dash.Dash(__name__, external_stylesheets=['https://www.w3schools.com/w3css/4/w3.css']) # external css style
 
 app.layout = html.Div(className='w3-row', children=[
-    html.Div(className='container-fluid', children=[html.H1('Dashboard - Tweet Analysis', id='main-title')],
+    ### Main Title ###
+    html.Div(className='w3-row', children=[html.H1('Dashboard - Tweet Analysis', id='main-title', style={'color':colors['text']}),
+                                           html.H3('Author: Sung Bae', id='main-author', style={'color':colors['table-text']}),
+                                           html.H4('Last Update: 12.10.2020', id='main-author', style={'color':colors['table-text']})],
                                                     style={'textAlign':'center',
-                                                           'color':colors['text'],
                                                            'padding':'10px'}),
     html.Hr(),
-    ### Real-time Data ###
+    ### Live Sentiment Graph Keyword Input ###
     html.Div(className='w3-row', children=[html.Label('Search: ', style={'color':colors['text']}),
-                                                    dcc.Input(id='sentiment-term', value='Microsoft', type='text', debounce = True)],
+                                                    dcc.Input(id='sentiment-term', value='', type='text', debounce = True)],
                                                     style={'textAlign':'left',
                                                            'padding':'5px',
                                                            'color':colors['text']}),
-
+    ### Live Sentiment Graph Control ###
     html.Div(className='w3-row', children=[html.Label('Time Bins: ', style={'color':colors['text']}),
                                                     dcc.RadioItems(id='sentiment-real-time-bin',
                                                                    options=[{'label':i, 'value':i} for i in ['5s', '10s', '30s', '60s']],
@@ -107,31 +106,15 @@ app.layout = html.Div(className='w3-row', children=[
                                                            'padding':'5px',
                                                            'color':colors['text']}),
 
-    # Live Sentiment Graph
+    ### Live Sentiment Graph ###
     html.Div(className='w3-cell-row', children=[html.Div(dcc.Graph(id='live-sentiment-graph', animate=False), className='w3-container w3-twothird'),
                                            html.Div(dcc.Graph(id='live-tweet-table-pie', animate=False), className='w3-container w3-third w3-cell-middle')]),
 
     html.Hr(),
-    html.Div(),
+    
+    ### Generate Word Cloud Upon Clicking the "Generate Button" ###
     html.Div(className='row', children=[html.Button('Generate Word Cloud!', id='get-word-cloud-button',
-                                                    style={'display': 'inline-block',
-                                                            'height': '50px',
-                                                            'padding': '0 50px',
-                                                            'margin': '0 20px 20px 0',
-                                                            'color': colors['table-text'], #'#555',
-                                                            'text-align': 'center',
-                                                            'font-size': '12px',
-                                                            'font-weight': '600',
-                                                            'line-height': '38px',
-                                                            'letter-spacing': '.1rem',
-                                                            'text-transform': 'uppercase',
-                                                            'text-decoration': 'none',
-                                                            'white-space': 'nowrap',
-                                                            'background-color': 'transparent',
-                                                            'border-radius': '7px',
-                                                            'border': '1px solid #bbb',
-                                                            'cursor': 'pointer',
-                                                            'box-sizing': 'border-box'}),
+                                                    style=button_style),
                                         # html.Div(id='word-cloud-loading-message', style={'textAlign':'center', 'color':colors['table-text'], 'padding':'10px'}),
                                         html.Div(className='container-fluid', children=[html.Div(html.Img(id='word-cloud-image', src='children', 
                                                                                                           style={'object-fit': 'cover',
@@ -142,11 +125,7 @@ app.layout = html.Div(className='w3-row', children=[
     
                          
     html.Hr(),
-    # html.Div(className='container-fluid', children=[html.H2(id='live-tweet-table-title', 
-    #                                                         style={'textAlign':'center',
-    #                                                                'color':colors['text'],
-    #                                                                'padding':'10px'})]),
-  
+    ### Live Tweets Table Title ###
     html.Div(className='w3-cell-row', children=[html.Div(className='w3-container w3-half w3-cell-middle', 
                                                          children=[html.H2(id='live-tweet-table-title', style={'textAlign':'center',
                                                                                                                 'color':colors['text'],
@@ -159,7 +138,7 @@ app.layout = html.Div(className='w3-row', children=[
                                                 #          children=[html.Button("UPDATE FLAGGED TWEETS!", id='live-flagged-tweet-table-update-button',
                                                 #                                 style=flag_button_style)])
                                                 ]),
-  # LIVE TWEET TABLE
+    ### Live Tweets Tables ###
     html.Div(className='w3-cell-row', children=[html.Div(className='w3-container w3-half', 
                                                          children=[html.Div(id="live-tweet-table")]),
                                                                    
@@ -167,33 +146,13 @@ app.layout = html.Div(className='w3-row', children=[
                                                          children=[html.Div(id="live-flagged-tweet-table")])                   
                                                 ]),
     
-    html.Hr(),
 
-    # LIVE FLAGGED TWEET TABLE
-            
-    # html.Div(className='container-fluid', children=[html.H2(id='live-flagged-tweet-table-title', 
-    #                                                         style={'textAlign':'center',
-    #                                                                'color':colors['ex-negative-sentiment'],
-    #                                                                'padding':'10px'})]),
-
-    # html.Div(className='row', children=[html.Button("FLAG ME!", id='live-flagged-tweet-table-update-button',
-    #                                                 style=flag_button_style)],
-    #                                                 style={'textAlign': 'center'}),              
-
-    # html.Div(className='w3-row', children=[html.Div(id="live-flagged-tweet-table", className='w3-container w3-twothird'),
-    #                                        html.Div('EMPTY SPACE',className='w3-container w3-third')]),
-    
+    ### Update Time Interval ###
     dcc.Interval(
         id='live-sentiment-graph-update',
         interval=refresh_time*1000, # in milliseconds
         n_intervals=0
     ),
-
-    # dcc.Interval(
-    #     id='live-word-cloud-update',
-    #     interval=60*1000, # in milliseconds
-    #     n_intervals=0
-    # ),
 
     dcc.Interval(
         id='live-tweet-table-update',
@@ -239,14 +198,11 @@ app.layout = html.Div(className='w3-row', children=[
     #                 style = {'color':colors['text']}
     #                 )
     # ]),
-
-
-
-    
 ],
     # Defines overall style
     style = {'backgroundColor': colors['background'], 'margin-top':'10px', 'height':'auto'}
 )
+
 ############################################
 ############### FUNCTIONS ##################
 ############################################

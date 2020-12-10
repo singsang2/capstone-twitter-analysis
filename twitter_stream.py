@@ -157,4 +157,4 @@ def run_stream(timestamp=TIMESTAMP, q=['a', 'the', 'i', 'you', 'to']):
             print('RECONNECTING '*20)
             print('*'*100)
 
-run_stream(TIMESTAMP, q=['Microsoft'])
+run_stream(TIMESTAMP)
