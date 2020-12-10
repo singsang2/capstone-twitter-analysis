@@ -47,7 +47,7 @@ NEG_THRESH = -0.3
 #### STYLE ####
 colors = {'background': '#111111', 
           'text':'#7FDBFF',
-          'table-text':'rgb(229, 231, 233)',
+          'table-text':'#EAEAEA',
           'sentiment-graph': '#00FFE8',
           'volume-graph': '#FFFF00',
           'ex-negative-sentiment': 'rgb(169, 50, 38)',
@@ -81,18 +81,27 @@ app.layout = html.Div(className='w3-row', children=[
     ### Main Title ###
     html.Div(className='w3-row', children=[html.H1('Dashboard - Tweet Analysis', id='main-title', style={'color':colors['text']}),
                                            html.H3('Author: Sung Bae', id='main-author', style={'color':colors['table-text']}),
-                                           html.H4('Last Update: 12.10.2020', id='main-author', style={'color':colors['table-text']})],
+                                           html.H4('Last Update: 12.10.2020', id='last-update', style={'color':colors['table-text']})],
                                                     style={'textAlign':'center',
                                                            'padding':'10px'}),
     html.Hr(),
+
+    ### Keywords for Tweet Filter ###
+    html.Div(className='w3-container', children=[html.Label('Streaming Query (separate by commas)', style={'color':colors['text']}),
+                                        dcc.Input(id='queries', className='w3-input', type='text', 
+                                                  placeholder='Ex. Microsoft, Apple, Google', debounce = True, 
+                                                  style={'backgroundColor':'#505050', 'color': colors['table-text']}),
+                                        ]),
+    html.Hr(),
     ### Live Sentiment Graph Keyword Input ###
-    html.Div(className='w3-row', children=[html.Label('Search: ', style={'color':colors['text']}),
-                                                    dcc.Input(id='sentiment-term', value='', type='text', debounce = True)],
-                                                    style={'textAlign':'left',
-                                                           'padding':'5px',
-                                                           'color':colors['text']}),
+    html.Div(className='w3-container', children=[html.Label('Search Brand/Service: ', style={'color':colors['text']}),
+                                                 dcc.Input(id='sentiment-term', className='w3-input', type='text', 
+                                                           placeholder='Azure', debounce = True, 
+                                                           style={'backgroundColor':'#505050', 'color': colors['table-text'], 'width':'500px'})
+                                                ]),
+
     ### Live Sentiment Graph Control ###
-    html.Div(className='w3-row', children=[html.Label('Time Bins: ', style={'color':colors['text']}),
+    html.Div(className='w3-container', children=[html.Label('Time Bins: ', style={'color':colors['text']}),
                                                     dcc.RadioItems(id='sentiment-real-time-bin',
                                                                    options=[{'label':i, 'value':i} for i in ['5s', '10s', '30s', '60s']],
                                                                    value = '5s',
@@ -113,7 +122,7 @@ app.layout = html.Div(className='w3-row', children=[
     html.Hr(),
     
     ### Generate Word Cloud Upon Clicking the "Generate Button" ###
-    html.Div(className='row', children=[html.Button('Generate Word Cloud!', id='get-word-cloud-button',
+    html.Div(className='w3-conatiner', children=[html.Button('Generate Word Cloud!', id='get-word-cloud-button',
                                                     style=button_style),
                                         # html.Div(id='word-cloud-loading-message', style={'textAlign':'center', 'color':colors['table-text'], 'padding':'10px'}),
                                         html.Div(className='container-fluid', children=[html.Div(html.Img(id='word-cloud-image', src='children', 
@@ -239,6 +248,9 @@ def similar_color_func_blue(word=None, font_size=None,
 def similar_color_func_orange(word=None, font_size=None,
                        position=None, orientation=None,
                        font_path=None, random_state=None, color='orange'):
+    """
+    gives similar colors that will be used in wordcloud
+    """
     color_dict = {'blue': 191, 'orange': 30}
     h = color_dict[color] # 0 - 360
     s = 100 # 0 - 100
@@ -246,6 +258,15 @@ def similar_color_func_orange(word=None, font_size=None,
     return "hsl({}, {}%, {}%)".format(h, s, l)
 
 def get_word_cloud(dataframe, term=''):
+    """
+    Generates two word clouds. One for positive sentiments and one for negative sentiments.
+    Args:
+        dataframe (pd.DataFrame): dataframe that contains tweet texts and sentiments.
+
+        term (str): key term used to generte the dataframe.
+    Returns:
+        an image file with two word clouds
+    """
     mask = np.array(Image.open('images/tweet_mask.jpg'))
     print('generating word cloud', term)
     stopword_list = list(STOP_WORDS) + list(string.punctuation) + [term] + ['like', 'good', 'bad', 'fuck', 'fucking', 'hate', 'best', 'awesome', 'great', 'horrible']
@@ -279,11 +300,17 @@ def get_word_cloud(dataframe, term=''):
     return img_file
 
 def encode_image(image_file):
+    """
+    Encodes image files into base64 that can be used/read by Dash/Plotly.
+    """
     encoded = base64.b64encode(open(image_file,'rb').read())
     print('Uploading the word cloud')
     return 'data:image/png;base64,{}'.format(encoded.decode())
 
 def generate_tweet_table(dataframe):
+    """
+    Generates tweets table for dash
+    """
     return dash_table.DataTable(id="responsive-table",
                                 columns=[{'name': 'Date', 'id':'date', 'type': 'datetime'},
                                          {'name': 'Tweet', 'id':'tweet', 'type': 'text'},
@@ -340,6 +367,9 @@ def generate_tweet_table(dataframe):
                                 ]),
     
 def generate_flagged_tweet_table(dataframe):
+    """
+    Generates table for flatted tweets that will be displayed in Dash.
+    """
     return dash_table.DataTable(id="flagged-table",
                                 columns=[{'name': 'Date', 'id':'date', 'type': 'datetime'},
                                          {'name': 'Tweet', 'id':'tweet', 'type': 'text'},
@@ -384,52 +414,66 @@ def generate_flagged_tweet_table(dataframe):
                                     }
                                 ]),
 def make_clickable(id):
+    """
+    Generates a link that can be used in Dash table.
+    Args:
+        id (str): Tweet id in string format
+    Returns:
+        link (str): Lnk that can be used in dash table.
+    """
     return f'[Link](https://twitter.com/user/status/{id})'
 
-###################################################
-############### END OF FUNCTIONS ##################
-###################################################
-
-
 #########################################################
-############### INTERACTIVE COMPONENTS ##################
+##################### CALL BACKS ########################
 #########################################################
+
+### QUERY SELECTION ###
+@app.callback(Output('queries-display', 'value'),
+              [Input('queries', 'value')])
+def update_sentiment_graph(n, term, time_bin, max_length):
+    # Adjusts refresh time when 
 ### LIVE SENTIMENT GRAPH ###
-
 @app.callback(Output('live-sentiment-graph', 'figure'),
               [Input('live-sentiment-graph-update', 'n_intervals'),
                Input('sentiment-term', 'value'),
                Input('sentiment-real-time-bin', 'value'),
                Input('sentiment-max-length', 'value')])
 def update_sentiment_graph(n, term, time_bin, max_length):
+    # Adjusts refresh time when the number of tweets increases to reduce stress on the system.
     global refresh_time
     if max_length == 1000:
         refresh_time = 5
     elif max_length == 2000:
         refresh_time = 10
     elif max_length == 5000:
-        refresh_time = 30
+        refresh_time = 15
 
     try:
+        # Generates a global dataframe that can be used by other callbacks once pulled from SQLite3 database.
         global df
-        if term:
+        if term: 
             df = pd.read_sql(f"SELECT * FROM sentiment WHERE tweet LIKE '%{term}%' ORDER BY unix DESC LIMIT {max_length}", conn)#, params=('%' + term + '%'))
             print('with term: dfsize: ',df.shape)
-        else:
+        else: # if no keyword was given
             df = pd.read_sql(f"SELECT * FROM sentiment ORDER BY unix DESC LIMIT {max_length}", conn)#, params=('%' + term + '%'))    
             print('without term: dfsize: ',df.shape)
+        
+        # Makes a copy of df to keep the original
         df_sent = df.copy()
         
+        # Converts unix into datetime and set it as index
         df_sent.sort_values('unix', inplace=True)
         df_sent['date'] = pd.to_datetime(df_sent['unix'], unit='ms')
         df_sent.set_index('date', inplace=True)
         
+        # Rolling average to smooth out the graph
         df_sent['sentiment_smoothed'] = df_sent['sentiment'].rolling(int(len(df)/10)).mean()
-
-
+        # Resamples according to time_bin value set by an user
         resampled_df = df_resample(df_sent, time_bin)
         print('df size after resample: ', resampled_df.shape)
         
+
+        # Creates Plotly graph for real-time sentiment
         X = resampled_df.index
         Y = resampled_df.sentiment_smoothed.values
         Y2 = resampled_df.volume.values
@@ -470,6 +514,9 @@ def update_sentiment_graph(n, term, time_bin, max_length):
               [Input('get-word-cloud-button', 'n_clicks'),
                Input('sentiment-term', 'value'),])
 def update_word_cloud(n_clicks, term):
+    """
+    Generates word cloud.
+    """
     if n_clicks:
         print(f"You've just clicked the word cloud button! term: {term}")
         # df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE '%{}%' ORDER BY unix DESC LIMIT 5000".format(sentiment_term), conn)#, params=('%' + term + '%'))
