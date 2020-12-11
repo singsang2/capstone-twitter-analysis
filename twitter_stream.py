@@ -14,6 +14,29 @@ import spacy
 nlp = spacy.load('en_core_web_lg')
 import ktrain
 import datetime
+# import requests
+# import os
+# import app
+# import importlib
+
+### Modify the follwoing query words before running! ###
+QUERIES = ['Microsoft OR to:Microsoft OR #Microsoft OR @Microsoft, entity:"Microsoft"', 
+           'Apple, ios, iphone, ipad, imac, mac, macbook, macair, airpod, entity:"Apple"', 
+           'Google, entity:"Google"', 
+           'Chickfila, (Chick fil), (Chick fila), entity:"Chickfila"', 
+           'BurgerKing, entity:"BurgerKing', 
+           'McDonalds, entity:"McDonalds"', 
+           'Coca, coke, entity:"Coca cola", entity:"Pepsi"', 'chicken', 
+           'Starbucks, entity:"Starbucks"', 'entity:"youtube"',
+           'Hyundai, entity:"Hyundai"', 'Bentz: entity:"Bentz"', "Mercedes", 'toyota, entity:"toyota"', 'kia',
+           'Samsung, entity:"Samsung"', 'Sony, entity:"Sony"', 'LG', 
+           'Azure', 'Amazon, entity:"Amazon"', 'yahoo', 'AWS', 
+           'Surface', 'macbook', 'macpro', 'imac', 'iphone', 'android', 'galaxy',
+           'Windows', 'ios', 'Xbox',
+           'Fedex, UPS, USPS, delivery, entity:"Fedex", entity:"UPS", entity:"UPSP"'
+           'instagram', 'tiktok', 'facebook, entity:"facebook"', 'PS5', 'Zoom', 'Telegram', 'Tesla, entity:"Tesla"', 'SpaceX, entity:"SpaceX"']
+
+
 ### spaCy tokenizer ###
 def clean_text(text, stopwords=False, tweet=True):
     """
@@ -59,6 +82,12 @@ def clean_text(text, stopwords=False, tweet=True):
 
 ### Twitter Listener Class Modification to Meet Our Needs ###
 class listener(StreamListener):
+    def __init__(self, cursor, conn, predictor, neg_threshold):
+        self.cursor = cursor
+        self.conn = conn
+        self.predictor = predictor
+        self.neg_threshold = neg_threshold
+
     def on_data(self, data):
         try:
             # loads json data
@@ -74,20 +103,20 @@ class listener(StreamListener):
                 clean = clean_text(data['text'])
                 # Sentiment Analysis *Change model if necessarity
                 sentiment = TextBlob(tweet).sentiment.polarity
-                # print(time_ms, tweet, sentiment)
+                print(time_ms, tweet, sentiment)
                 
-                c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                self.cursor.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
-                conn.commit()
+                self.conn.commit()
 
-                if sentiment < NEG_THRESH:  ### This NEG_THRESH value can be adjusted by the user
-                    proba = predictor.predict_proba([tweet])[0]
-                    print('BERT EXCUTED!')
+                if sentiment < self.neg_threshold:  ### This NEG_THRESH value can be adjusted by the user
+                    proba = self.predictor.predict_proba([tweet])[0]
+                    # print('BERT EXCUTED!')
                     if proba[0] > proba[1]:
-                        c.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        self.cursor.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[0], 0))
-                        conn.commit()
-                        print('FLAGGGGGEED!')
+                        self.conn.commit()
+                        print('Stream: FLAGGGGGEED!')
         except KeyError as e:
             print(str(e))
             time.sleep(2)
@@ -97,24 +126,25 @@ class listener(StreamListener):
         print(status)
         time.sleep(5)
 
-class stream_twitter():
+class streamTwitter():
     def __init__(self, current_keywords, timestamp, model_path='models/BERT_2'):
-        self.keywords = keywords
+        self.current_keywords = current_keywords
         self.timestamp = timestamp
         self.neg_threshold = -0.4
 
         # Loads BERT model
-        self.predictor = ktrain.load_predictor(MODEL_PATH)
+        self.predictor = ktrain.load_predictor(model_path)
         
         # Connects to Twitter API via Tweepy
         self.auth = tweepy.OAuthHandler(consumer_key=keys.CONSUMER_KEY, consumer_secret=keys.CONSUMER_SECRET) ### MUST SET YOUR OWN KEYS
+        # self.auth = tweepy.AppAuthHandler(consumer_key=keys.CONSUMER_KEY, consumer_secret=keys.CONSUMER_SECRET)
         self.auth.set_access_token(keys.ACCESS_KEY, keys.ACCESS_SECRET) ### MUST SET YOUR OWN KEYS
-        self.api = tweepy.API(auth, wait_on_rate_limit=True)
+        self.api = tweepy.API(self.auth, wait_on_rate_limit=True)
 
         # Connects to sqlite3 database
-        path=f'data/twitter_{TIMESTAMP}.db'
+        path=f'data/twitter_{self.timestamp}.db'
         self.conn = sqlite3.connect(path, check_same_thread=False, timeout=20)
-        self.cursor = conn.cursor()
+        self.cursor = self.conn.cursor()
         self.create_table()
         self.create_flag_table()
 
@@ -127,7 +157,7 @@ class stream_twitter():
         self.cursor.execute("CREATE TABLE IF NOT EXISTS flag(unix REAL, id TEXT, user TEXT, tweet TEXT, clean TEXT, favorite INT, retweet INT, sentiment REAL, dealt INT)")
         self.conn.commit()
 
-    def stream(self, q, languages=['en']):
+    def stream(self, languages=['en']):
         """
         Runs streamining from Twitter.
         Args:
@@ -136,61 +166,78 @@ class stream_twitter():
             languages (list): list of strings containing languages for tweet filter
         """
         print('Streaming Beginning...')
-        print('Requested Queries: ', q)
-        twitterStream = tweepy.Stream(auth, listener())
-        twitterStream.filter(track=q, languages=languages)
+        print('Requested Queries: ', self.current_keywords)
+        self.twitterStream = tweepy.Stream(self.auth, listener(self.cursor, self.conn, self.predictor, self.neg_threshold))
+        self.twitterStream.filter(track=self.current_keywords, languages=languages)
         # twitterStream.filter(track=['a', 'the', 'i', 'you', 'to'], languages=['en'])
 
-    def search_tweet(self, keyword, max_len=500):
-        tweets = tweepy.Cursor(api.search, q=[f'{keyword} -filter:retweets', f'to:{keyword}'], count=100, result_type='recent', lang='en').items(max_len)
-        for tweet in tweets:
-            data = tweet._json
-            tweet = data['text']
-            time = data['creted_at']
-            time_ms = time.mktime(datetime.datetime.strptime(time,'%a %b %d %H:%M:%S +0000 %Y').timetuple())
-            favorite = data['favorite_count'] 
-            retweet = data['retweet_count']
-            id_str = data['id_str']
-            user_str = data['user']['id_str']
+    # def search_tweet(self, search_words, max_len=5000):
+    #     tweets = tweepy.Cursor(self.api.search, q=[f'{word}' for word in search_words],     #-filter:retweets
+    #                            count=100, result_type='recent', 
+    #                            lang='en').items(max_len)
+    #     for tweet in tweets:
+    #         data = tweet._json
+    #         tweet = data['text']
+    #         date_time = data['created_at']
+    #         time_ms = time.mktime(datetime.datetime.strptime(date_time,'%a %b %d %H:%M:%S +0000 %Y').timetuple())*1000
+    #         favorite = data['favorite_count'] 
+    #         retweet = data['retweet_count']
+    #         id_str = data['id_str'] 
+    #         user_str = data['user']['id_str']
 
-            clean = clean_text(data['text'])
-            # Sentiment Analysis *Change model if necessarity
-            sentiment = TextBlob(tweet).sentiment.polarity
-            # print(time_ms, tweet, sentiment)
+    #         clean = clean_text(data['text'])
+    #         # Sentiment Analysis *Change model if necessarity
+    #         sentiment = TextBlob(tweet).sentiment.polarity
+    #         # print(time_ms, tweet, sentiment)
 
-            c.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
-            conn.commit()
+    #         self.cursor.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    #                       (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment))
+    #         self.conn.commit()
 
-            if sentiment < NEG_THRESH:  ### This NEG_THRESH value can be adjusted by the user
-                proba = predictor.predict_proba([tweet])[0]
-                print('BERT EXCUTED!')
-                if proba[0] > proba[1]:
-                    c.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[0], 0))
-                    conn.commit()
-                    print('FLAGGGGGEED!')
+    #         if sentiment < self.neg_threshold:  ### This NEG_THRESH value can be adjusted by the user
+    #             proba = self.predictor.predict_proba([tweet])[0]
+    #             # print('BERT EXCUTED!')
+    #             if proba[0] > proba[1]:
+    #                 self.cursor.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    #                     (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[0], 0))
+    #                 self.conn.commit()
+    #                 print('Search: FLAGGGGGEED!')
 
     def select_search_words(self, keywords):
         new_batch_words = []
         for word in keywords:
-            if word.lower() not in current_keywords:
-                current_keywords.append(word.lower())
+            if word.lower() not in self.current_keywords:
+                self.current_keywords.append(word.lower())
                 new_batch_words.append(word)
         return new_batch_words
 
-    def start_stream(self, keywords):
+    def disconnect(self):
+        self.twitterStream.disconnect()
+
+    def update_stream(self, keywords):
         search_words = self.select_search_words(keywords)
         if len(search_words)>0:
+            print('New Added keywords: ', search_words)
+            start = time.time()
             self.search_tweet(search_words)
-        while 1:
-            try:
-                self.stream(q=current_keywords)
-            except Exception as e:
-                print('DISCONNECTED')
-                print(e)
-                time.sleep(10)
-                print('*'*100) 
-                print('RECONNECTING '*20)
-                print('*'*100)
+            print(f'search done. Running time: {time.time()-start}s')
 
+            # self.twitterStream().disconnect()
+            print(f'Begin Streaming. Keywords: {self.current_keywords}')
+            self.stream()
+        # except Exception as e:
+        #     print('DISCONNECTED')
+        #     print(e)
+        #     time.sleep(10)
+        #     print('*'*100) 
+        #     print('RECONNECTING '*20)
+        #     print('*'*100)
+TIMESTAMP = str(datetime.date.today()).replace('-','')
+while 1:
+    try:
+        streamer = streamTwitter(current_keywords=QUERIES, timestamp=TIMESTAMP)
+        streamer.stream()
+    except Exception as e:
+        print(e)
+        time.sleep(10)
+        print("Reconnecting"*50)
