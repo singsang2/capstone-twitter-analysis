@@ -138,8 +138,5 @@ models/BERT_2
 keys/*
 
 # Twitter data
-<<<<<<< HEAD
-data/twitter_2.db
-=======
-data/*
->>>>>>> parent of 6d3f55b... update
+data/twitter_20201211.db
+
