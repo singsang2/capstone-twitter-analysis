@@ -3,7 +3,7 @@ warnings.filterwarnings(action='ignore')
 import tweepy
 import pandas as pd
 import sqlite3
-from textblob import TextBlob
+# from textblob import TextBlob
 import keys.keys as keys
 from tweepy.streaming import StreamListener
 import time
@@ -14,6 +14,8 @@ import spacy
 nlp = spacy.load('en_core_web_lg')
 import ktrain
 import datetime
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
 # import requests
 # import os
 # import app
@@ -36,6 +38,11 @@ QUERIES = ['Microsoft OR to:Microsoft OR #Microsoft OR @Microsoft, entity:"Micro
            'Fedex, UPS, USPS, delivery, entity:"Fedex", entity:"UPS", entity:"UPSP"'
            'instagram', 'tiktok', 'facebook, entity:"facebook"', 'PS5', 'Zoom', 'Telegram', 'Tesla, entity:"Tesla"', 'SpaceX, entity:"SpaceX"']
 
+# VADER MODEL
+analyser = SentimentIntensityAnalyzer()
+def vader_analyzer(tweet):
+    score = analyser.polarity_scores(tweet)
+    return score['compound'] 
 
 ### spaCy tokenizer ###
 def clean_text(text, stopwords=False, tweet=True):
@@ -82,11 +89,12 @@ def clean_text(text, stopwords=False, tweet=True):
 
 ### Twitter Listener Class Modification to Meet Our Needs ###
 class listener(StreamListener):
-    def __init__(self, cursor, conn, predictor, neg_threshold):
+    def __init__(self, cursor, conn, predictor, neg_threshold, pos_threshold):
         self.cursor = cursor
         self.conn = conn
         self.predictor = predictor
         self.neg_threshold = neg_threshold
+        self.pos_threshold = pos_threshold 
 
     def on_data(self, data):
         try:
@@ -102,7 +110,8 @@ class listener(StreamListener):
 
                 clean = clean_text(data['text'])
                 # Sentiment Analysis *Change model if necessarity
-                sentiment = TextBlob(tweet).sentiment.polarity
+                # sentiment = TextBlob(tweet).sentiment.polarity
+                sentiment = vader_analyzer(tweet)
                 print(time_ms, tweet, sentiment)
                 
                 self.cursor.execute("INSERT INTO sentiment (unix, id, user, tweet, clean, favorite, retweet, sentiment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -111,12 +120,19 @@ class listener(StreamListener):
 
                 if sentiment < self.neg_threshold:  ### This NEG_THRESH value can be adjusted by the user
                     proba = self.predictor.predict_proba([tweet])[0]
-                    # print('BERT EXCUTED!')
                     if proba[0] > proba[1]:
                         self.cursor.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[0], 0))
                         self.conn.commit()
-                        print('Stream: FLAGGGGGEED!')
+                        print('Stream: NEGATIVE FLAGGGGGEED!')
+                elif sentiment > self.pos_threshold:  ### This POS_THRESH value can be adjusted by the user
+                    proba = self.predictor.predict_proba([tweet])[0]
+                    # print('BERT EXCUTED!')
+                    if proba[0] < proba[1]:
+                        self.cursor.execute("INSERT INTO flag (unix, id, user, tweet, clean, favorite, retweet, sentiment, dealt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (time_ms, id_str, user_str, tweet, clean, favorite, retweet, sentiment*proba[1], 0))
+                        self.conn.commit()
+                        print('Stream: POSITIVE FLAGGGGGEED!')
         except KeyError as e:
             print(str(e))
             time.sleep(2)
@@ -130,7 +146,8 @@ class streamTwitter():
     def __init__(self, current_keywords, timestamp, model_path='models/BERT_2'):
         self.current_keywords = current_keywords
         self.timestamp = timestamp
-        self.neg_threshold = -0.4
+        self.neg_threshold = -0.5
+        self.pos_threshold = 0.8 # Set higher
 
         # Loads BERT model
         self.predictor = ktrain.load_predictor(model_path)
@@ -167,7 +184,7 @@ class streamTwitter():
         """
         print('Streaming Beginning...')
         print('Requested Queries: ', self.current_keywords)
-        self.twitterStream = tweepy.Stream(self.auth, listener(self.cursor, self.conn, self.predictor, self.neg_threshold))
+        self.twitterStream = tweepy.Stream(self.auth, listener(self.cursor, self.conn, self.predictor, self.neg_threshold, self.pos_threshold))
         self.twitterStream.filter(track=self.current_keywords, languages=languages)
         # twitterStream.filter(track=['a', 'the', 'i', 'you', 'to'], languages=['en'])
 

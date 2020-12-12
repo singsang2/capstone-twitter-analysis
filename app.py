@@ -414,17 +414,14 @@ def generate_tweet_table(dataframe):
 
 def generate_flagged_tweet_table(dataframe):
     """
-    Generates table for flatted tweets that will be displayed in Dash.
+    Generates tweets table for dash
     """
-    return dash_table.DataTable(id="flagged-table",
+    return dash_table.DataTable(id="responsive-table",
                                 columns=[{'name': 'Date', 'id':'date', 'type': 'datetime'},
                                          {'name': 'Tweet', 'id':'tweet', 'type': 'text'},
                                          {'name': 'Sentiment', 'id':'sentiment', 'type': 'numeric'},
-                                         {'name': 'Link', 'id':'link', 'type': 'text', 'presentation':'markdown'},
-                                         {'name': 'Dealt', 'id':'dealt', 'type': 'text', 'presentation':'dropdown'},],
+                                         {'name': 'Link', 'id':'link', 'type': 'text', 'presentation':'markdown'}],
                                 data = dataframe.to_dict('records'),
-                                editable = True,
-                                dropdown={'dealt': {'options': [{'label': str(i), 'value': i} for i in [0, 1]]}},
                                 style_header={
                                     'backgroundColor': 'rgb(52, 73, 94)',
                                     'fontWeight': 'bold',
@@ -457,8 +454,68 @@ def generate_flagged_tweet_table(dataframe):
                                         },
                                         'backgroundColor': colors['ex-negative-sentiment'],
                                         'color': 'white'
-                                    }
+                                    },
+                                    {
+                                        'if': {
+                                            'filter_query': '{sentiment} > 0.3'
+                                        },
+                                        'backgroundColor': colors['sl-positive-sentiment'],
+                                        'color': colors['ex-positive-sentiment']
+                                    },
+                                    {
+                                        'if': {
+                                            'filter_query': '{sentiment} > 0.6'
+                                        },
+                                        'backgroundColor': colors['ex-positive-sentiment'],
+                                        'color': 'white'
+                                    },
                                 ]),
+    # """
+    # Generates table for flatted tweets that will be displayed in Dash.
+    # """
+    # return dash_table.DataTable(id="flagged-table",
+    #                             columns=[{'name': 'Date', 'id':'date', 'type': 'datetime'},
+    #                                      {'name': 'Tweet', 'id':'tweet', 'type': 'text'},
+    #                                      {'name': 'Sentiment', 'id':'sentiment', 'type': 'numeric'},
+    #                                      {'name': 'Link', 'id':'link', 'type': 'text', 'presentation':'markdown'},
+    #                                      {'name': 'Dealt', 'id':'dealt', 'type': 'text', 'presentation':'dropdown'},],
+    #                             data = dataframe.to_dict('records'),
+    #                             editable = True,
+    #                             dropdown={'dealt': {'options': [{'label': str(i), 'value': i} for i in [0, 1]]}},
+    #                             style_header={
+    #                                 'backgroundColor': 'rgb(52, 73, 94)',
+    #                                 'fontWeight': 'bold',
+    #                                 'color': colors['text'],
+    #                                 'textAlign': 'left',
+    #                                 'fontSize': '12pt',
+    #                                 'height': 'auto',
+    #                                 'width': 'auto'
+    #                             },
+    #                             style_cell={'padding': '5px',
+    #                                         'backgroundColor': colors['background'],
+    #                                         'color': colors['table-text'],
+    #                                         'textAlign':'left',
+    #                                         'height':'auto',
+    #                                         'whiteSpace':'normal',
+    #                                         'lineHeight':'15px',
+    #                                         'width':'auto'},
+    #                             style_as_list_view=True,
+    #                             style_data_conditional=[
+    #                                 {
+    #                                     'if': {
+    #                                         'filter_query': '{sentiment} < -0.3'
+    #                                     },
+    #                                     'backgroundColor': colors['sl-negative-sentiment'],
+    #                                     'color': colors['ex-negative-sentiment']
+    #                                 },
+    #                                 {
+    #                                     'if': {
+    #                                         'filter_query': '{sentiment} < -0.6'
+    #                                     },
+    #                                     'backgroundColor': colors['ex-negative-sentiment'],
+    #                                     'color': 'white'
+    #                                 }
+    #                             ]),
 def make_clickable(id):
     """
     Generates a link that can be used in Dash table.
