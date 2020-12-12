@@ -139,4 +139,5 @@ keys/*
 
 # Twitter data
 data/twitter_20201211.db
+data/twitter_20201211_archived.db
 
