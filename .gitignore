@@ -140,10 +140,13 @@ keys/*
 # Twitter data
 data/twitter_20201211.db
 data/twitter_20201211_archived.db
-Data/twitter_20210118.db
+data/twitter_20210118.db
 
 README.ipynb
 
-Note.ipynb #scrap work
+#scrap work
+note.ipynb 
 
-twitter_stream_v2.py # work in progress
+
+#work in progress
+twitter_stream_v2.py 
