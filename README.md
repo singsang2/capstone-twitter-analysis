@@ -2,7 +2,7 @@
 **Product/Service Monitoring System**
 
 This project was inspired `sentdex`. (https://github.com/Sentdex/socialsentiment/)
-
+<img src='images/dashboard_0.png'>
 # What is in this repository
 
 **Jupyter Notebooks**
@@ -10,12 +10,13 @@ This project was inspired `sentdex`. (https://github.com/Sentdex/socialsentiment
 
 **Python Files**
 - `twitter_stream.py`: connects to Twitter API and streamline tweets with various keywords
+- `tweet_analyzer.py`: cleans and analyzes streamed tweets
 - `app.py`: Dash dashboard
 
 **Folders**
 - `images`: contains image files
 - `models`: contains (1) BERT NLP and (2) spaCy TF-IF vectorization sentiment analysis models *(*BERT model excluded)*
-- `data`: contains SQLite3 databases pulled from Twitter using Tweepy *(only sample database is included)*
+- `data`: contains SQLite3 databases pulled from Twitter using Tweepy *(only sample database is included)* and `bag_of_words`
 - `datasets`: contains datasets that were used to train various NLP sentiment analysis models
 - `src`: contains useful codes that were used in creating models
 - `keys`: contains Twitter API key information *(*files excluded)*
@@ -25,7 +26,10 @@ This project was inspired `sentdex`. (https://github.com/Sentdex/socialsentiment
 1. Add Twitter API information in `keys` directory, and make sure the PATH is correctly defined in `twitter_stream.py`.
 2. Adjust any keywords or queries in `twitter_stream.py`.
 3. Set up SQLITE3 database path and run `twitter_stream.py`.
-4. Run `app.py`!
+4. Download `BERT_2` model using this <a href='google.com'>test</a> and store it in a directory of your choice.
+5. In `tweet_analyzer.py`: 1) correctly set up SQLITE3 database path that matches step #3 and 2) correctly set up pathway for `BERT_2` model.
+6. Run `tweet_analyzer.py`
+7. Run `app.py`
 
 # Introduction
 
