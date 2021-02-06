@@ -67,7 +67,8 @@ class listener(StreamListener):
 
         except KeyError as e:
             print(str(e))
-            time.sleep(2)
+            print('keyerror')
+            time.sleep(1)
         return True
     
     def on_error(self, status):

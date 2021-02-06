@@ -31,6 +31,7 @@ import datetime
 import urllib
 import urllib.parse
 import pickle
+from collections import Counter
 
 # Inspired by https://github.com/Sentdex/socialsentiment
 
@@ -321,26 +322,35 @@ def get_word_cloud(df_list, keywords):
     with open('data/bag_of_words', 'rb') as f:
         bagofwords = pickle.load(f)
     # ignores top 100 words used throughout twitter
-    stop_from_bag_of_words = [x[0] for x in bagofwords.most_common(n=50)]
-    stopword_list = STOP_WORDS | set(list(string.punctuation) + keywords + QUERIES + stop_from_bag_of_words + ['fuck', 'shit',])
-
-    wc_pos = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list,
-                        max_font_size=256,
-                        random_state=42, width=mask.shape[1]*1.2,
-                        height=mask.shape[0]*1.2, color_func=similar_color_func_blue,
-                        min_word_length = 4, collocation_threshold = 20)
+    stop_from_bag_of_words = [x[0] for x in bagofwords.most_common(n=200)]
+    stopword_list = STOP_WORDS | set(list(string.punctuation) + keywords + QUERIES + stop_from_bag_of_words + ['fuck', 'shit', 'nigga', 'niggas', 'wtf', 'lmao', 'lol', 'bitch', 'company'])
+    # print('good' in stopword_list)
     
-
-    wc_neg = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list,
-                        max_font_size=256,
-                        random_state=42, width=mask.shape[1]*1.2,
-                        height=mask.shape[0]*1.2, color_func=similar_color_func_orange,
-                        min_word_length = 4, collocation_threshold = 20)
     
     fig, axes = plt.subplots(nrows=len(keywords), ncols=2, figsize=(24,14*(len(keywords))))
 
     axes = axes.ravel()
     for i,j in zip(range(len(keywords)), range(0, len(keywords)*2,2)) :
+        pos_words = Counter(' '.join(df_list[i][df_list[i]['sentiment']>POS_THRESH]['clean']).split())
+        neg_words = Counter(' '.join(df_list[i][df_list[i]['sentiment']<NEG_THRESH]['clean']).split())
+
+        # finds any common words in top 20% of neg and pos words
+        ignore_words = {x[0] for x in pos_words.most_common(n=20)} & {x[0] for x in neg_words.most_common(n=20)}
+        # print(ignore_words)
+
+        wc_pos = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list|ignore_words,
+                        max_font_size=256,
+                        random_state=42, width=mask.shape[1]*1.2,
+                        height=mask.shape[0]*1.2, color_func=similar_color_func_blue,
+                        min_word_length = 3, collocation_threshold = 13)
+    
+
+        wc_neg = WordCloud(mask=mask, background_color=colors['background'], stopwords=stopword_list|ignore_words,
+                        max_font_size=256,
+                        random_state=42, width=mask.shape[1]*1.2,
+                        height=mask.shape[0]*1.2, color_func=similar_color_func_orange,
+                        min_word_length = 3, collocation_threshold = 13)
+
         wc_pos.generate(','.join(df_list[i][df_list[i]['sentiment']>POS_THRESH]['clean']))
         wc_neg.generate(','.join(df_list[i][df_list[i]['sentiment']<NEG_THRESH]['clean']))
 

@@ -92,7 +92,7 @@ def main():
     time.sleep(10)
     while 1:
         clean_df = pd.read_sql(f"""SELECT * FROM sentiment 
-                                    WHERE unix > {clean_time} AND sentiment NOT BETWEEN -0.1 AND 0.1
+                                    WHERE unix > {clean_time} AND sentiment NOT BETWEEN -0.3 AND 0.3
                                     ORDER BY unix ASC""", conn)
         if len(clean_df) > 0:
             print(f'There are {len(clean_df)} new tweets to clean!')
@@ -108,7 +108,7 @@ def main():
             temp_df = pd.read_sql(f"""SELECT s.unix, s.id, s.sentiment, c.clean FROM sentiment s
                                     JOIN clean c
                                     ON s.id = c.id
-                                    WHERE s.unix > {analyze_time} AND sentiment NOT BETWEEN -0.69 and 0.79
+                                    WHERE s.unix > {analyze_time} AND sentiment NOT BETWEEN -0.69 and 0.89
                                     ORDER BY s.unix ASC""", conn)
             if len(temp_df) > 0:
                 print(f'There are {len(temp_df)} new tweets to analyze!')
@@ -152,6 +152,7 @@ def main():
             else:
                 print('No new tweets to analyze')
                 analyze_time = clean_time
+            time.sleep(5)
         else:
             print('No new tweets to analyze')
             time.sleep(5)
