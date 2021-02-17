@@ -64,8 +64,10 @@ def delete_all_rules(headers, bearer_token, rules):
 def set_rules(headers, delete, bearer_token):
     # You can adjust the rules if needed
     sample_rules = [
-        {"value": "entity:Microsoft lang:en -is:retweet", "tag": "Microsoft"},
-        {"value": "entity:Apple lang:en -is:retweet", "tag": "Apple"}
+        {"value": "entity:United lang:en -is:retweet", "tag": "United"},
+        {"value": "entity:Delta lang:en -is:retweet", "tag": "Delta"},
+        {"value": "entity:AmericanAir lang:en -is:retweet", "tag": "AA"},
+        {"value": "entity:SouthwestAir lang:en -is:retweet", "tag": "Southwest"},
     ]
     payload = {"add": sample_rules}
     response = requests.post(

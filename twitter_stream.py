@@ -22,7 +22,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 # import importlib
 
 ### Modify the follwoing query words before running! ###
-QUERIES = ['Microsoft', 'Apple', 'Google', 'facebook','Comcast', 'AT&T', 'youtube']
+QUERIES = ['#delta or @Delta or delta', '@United or #United',  '@southwest or southwest', '@americanair OR #AmericanAir or "American Airline"', 'Airline', 'Plane', '@JetBlue or Jetblue', '@FlyFrontier or Frontier Air', '@ATLairport or #ATLairport']
            
 
 # VADER MODEL
@@ -84,8 +84,8 @@ auth.set_access_token(keys.ACCESS_KEY, keys.ACCESS_SECRET) ### MUST SET YOUR OWN
 api = tweepy.API(auth, wait_on_rate_limit=True)
 
 # Connects to sqlite3 database
-# path=f'data/twitter_{TIMESTAMP}.db'
-path=f'data/twitter_20210118.db'
+path=f'data/twitter_{TIMESTAMP}.db'
+# path=f'data/twitter_20210118.db'
 conn = sqlite3.connect(path, check_same_thread=False, timeout=20)
 cursor = conn.cursor()
 create_table(cursor, conn)

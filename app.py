@@ -35,12 +35,6 @@ from collections import Counter
 
 # Inspired by https://github.com/Sentdex/socialsentiment
 
-# Keywords used for quries in tweet streaming
-global CURRENT_KEYWORDS
-CURRENT_KEYWORDS = []
-
-QUERIES = ['Microsoft', 'Apple', 'Google', 'facebook','Comcast', 'AT&T']
-
 global refresh_time
 refresh_time = 5
 
@@ -49,8 +43,9 @@ TIMESTAMP = str(datetime.date.today()).replace('-','')
 
 
 ### SQL Connection ###
-# conn = sqlite3.connect(f'data/twitter_{TIMESTAMP}.db', check_same_thread=False, timeout=25)
-conn = sqlite3.connect(f'data/twitter_20210118.db', check_same_thread=False, timeout=25)
+conn = sqlite3.connect(f'data/twitter_{TIMESTAMP}.db', check_same_thread=False, timeout=25)
+# demo
+# conn = sqlite3.connect(f'data/twitter_20210118.db', check_same_thread=False, timeout=25)
 c = conn.cursor()
 
 POS_THRESH = 0.3

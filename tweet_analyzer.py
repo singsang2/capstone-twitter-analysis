@@ -24,8 +24,8 @@ TIMESTAMP = str(datetime.date.today()).replace('-','')
 # streamer = twitter_stream.streamTwitter([], TIMESTAMP)
 
 ### SQL Connection ###
-# conn = sqlite3.connect(f'data/twitter_{TIMESTAMP}.db', check_same_thread=False, timeout=25)
-conn = sqlite3.connect(f'data/twitter_20210118.db', check_same_thread=False, timeout=25)
+conn = sqlite3.connect(f'data/twitter_{TIMESTAMP}.db', check_same_thread=False, timeout=25)
+# conn = sqlite3.connect(f'data/twitter_20210118.db', check_same_thread=False, timeout=25)
 c = conn.cursor()
 
 
